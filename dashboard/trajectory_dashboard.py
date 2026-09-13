@@ -681,18 +681,25 @@ h1{font-family:var(--serif);font-weight:400;font-size:clamp(27px,4.2vw,42px);
 .set-g{margin:0 0 26px;scroll-margin-top:66px}
 .set-g > h3{font-family:var(--serif);font-weight:400;font-size:19px;margin:0;
   padding-bottom:7px;border-bottom:1px solid var(--hair)}
-.set-row{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:8px 20px;
+/* A row is a label and the control that sets it. The control column was a fixed
+   300px, which is right in the settings pane and wrong in the 460px column
+   Extract puts the same rows in -- the label was left 91px there and a
+   one-line hint wrapped to five, beside a select that is 160px wide. So the
+   row wraps: they sit side by side while both fit, and the control drops to
+   its own line, still right-aligned, when they do not. */
+.set-row{display:flex;flex-wrap:wrap;gap:8px 20px;
   padding:11px 0;border-bottom:1px solid var(--hair-2);align-items:start}
 .set-row:last-child{border-bottom:0}
-.set-l{min-width:0}
+.set-l{flex:1 1 260px;min-width:0}
 .set-l .t{font-size:13px;color:var(--fg)}
 .set-l .k{font-family:var(--mono);font-size:9.5px;color:var(--faint);
   margin-left:7px}
 .set-l .h{font-size:11.5px;color:var(--faint);line-height:1.45;margin-top:2px}
 .set-row.changed .t{color:var(--brand)}
 .set-row.changed .t::after{content:" •";color:var(--brand)}
-.set-c{border:0;padding:0;margin:0;min-width:0;display:flex;
-  align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.set-c{border:0;padding:0;margin:0 0 0 auto;min-width:0;display:flex;
+  align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap;
+  flex:0 0 auto;width:300px}
 .set-empty{font-family:var(--mono);font-size:11.5px;color:var(--faint);
   padding:30px 0}
 .set-note{font-family:var(--mono);font-size:10px;color:var(--faint);
