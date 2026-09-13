@@ -71,10 +71,11 @@ CONFIG_LOCK = __import__("threading").Lock()
 CONFIG_SPEC = [
     # ---------------------------------------------------------- appearance
     {"k": "theme", "g": "Appearance", "l": "Palette", "t": "enum",
-     "d": "paper", "opts": ["paper", "ink", "green"], "attr": "theme",
-     "scope": "live",
-     "h": "Paper is the light stock, ink is true black, green is that black "
-          "cast green. The accent is still the Accent colour knob"},
+     "d": "paper", "opts": ["paper", "ink", "green", "midnight"],
+     "attr": "theme", "scope": "live",
+     "h": "Paper is the light stock; ink is true black; green and midnight are "
+          "that black cast green and blue. The accent is still the Accent "
+          "colour knob"},
     {"k": "density", "g": "Appearance", "l": "Density", "t": "enum",
      "d": "comfortable", "opts": ["comfortable", "compact"], "attr": "density",
      "scope": "live", "h": "Row padding across every list on the page"},

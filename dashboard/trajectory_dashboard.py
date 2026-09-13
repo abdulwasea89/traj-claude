@@ -65,37 +65,63 @@ CSS = r"""
   --src-inject:#8A6A16;
   --src-system:#4A7A8C;
   --src-other:#6B6660;
+  /* Floating panels get their own edge and shadow colour. On paper a warm
+     shadow is right; on the dark stocks it has to be black and the edge has to
+     do the separating instead -- see the theme blocks below. */
+  --pop-edge:var(--hair);
+  --shadow-c:26,25,23;
   --sans:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --serif:"Instrument Serif",Georgia,"Times New Roman",serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 
-/* The dark stock: true black, not dark grey. On an OLED panel a #000
-   background is the pixels switched off, and the hairlines are what carry the
-   structure instead of a lifted surface. The panels are lifted by the smallest
-   step that still separates them, which is why --bg-2 is #0A0A0A and not the
-   #1A1D22 an ordinary dark theme would use. */
+/* The dark stocks. Each one is a different cast of near-black -- neutral, green,
+   blue -- but they share the two things that actually make a dark theme work,
+   which is why they are set together rather than three times:
+     * a raised edge on floating panels, because a black shadow on a black page
+       is no shadow at all, and a dropdown that cannot be told apart from what it
+       covers is a dropdown you cannot read;
+     * a black shadow colour, instead of the paper theme's warm one. */
+body[data-theme=ink],body[data-theme=green],body[data-theme=midnight]{
+  --pop-edge:color-mix(in oklab, var(--fg) 16%, transparent);
+  --shadow-c:0,0,0;
+}
+body[data-theme=ink] .noise,body[data-theme=green] .noise,
+body[data-theme=midnight] .noise{mix-blend-mode:screen;opacity:.05}
+body[data-theme=ink] .panel,body[data-theme=ink] .tile,body[data-theme=ink] .turn,
+body[data-theme=green] .panel,body[data-theme=green] .tile,
+body[data-theme=green] .turn,body[data-theme=midnight] .panel,
+body[data-theme=midnight] .tile,body[data-theme=midnight] .turn{
+  border-color:var(--hair)}
+
+/* True black, not dark grey. On an OLED panel a #000 background is the pixels
+   switched off, and the hairlines carry the structure instead of a lifted
+   surface -- which is why --bg-2 is #0A0A0A and not the #1A1D22 an ordinary
+   dark theme would use. --faint is lighter than it was: at 9.5px, a label that
+   fails contrast is a label that is not there. */
 body[data-theme=ink]{
   --bg:#000000; --bg-2:#0A0A0A; --bg-3:#161616;
-  --fg:#F0EFEC; --muted:#94918B; --faint:#5E5C58;
+  --fg:#F0EFEC; --muted:#94918B; --faint:#6E6B65;
   --hair-c:#242424; --hair2-c:#161616; --wash:#101010;
 }
-body[data-theme=ink] .noise{mix-blend-mode:screen;opacity:.05}
-body[data-theme=ink] .panel,body[data-theme=ink] .tile,
-body[data-theme=ink] .turn{border-color:var(--hair)}
 
-/* The green stock: the same black, cast green -- a terminal that grew a
-   dashboard. The ramp is tinted, but --brand is deliberately left alone: the
-   accent is a setting, and a theme that silently overrode it would make that
-   knob look broken. */
+/* The same black, cast green -- a terminal that grew a dashboard. The ramp is
+   tinted, but --brand is deliberately left alone: the accent is a setting, and
+   a theme that silently overrode it would make that knob look broken. */
 body[data-theme=green]{
   --bg:#020503; --bg-2:#061009; --bg-3:#0C1A11;
-  --fg:#D9F2E1; --muted:#7CA98B; --faint:#4B6B57;
+  --fg:#D9F2E1; --muted:#7CA98B; --faint:#57775F;
   --hair-c:#123020; --hair2-c:#0C2116; --wash:#08150D;
 }
-body[data-theme=green] .noise{mix-blend-mode:screen;opacity:.05}
-body[data-theme=green] .panel,body[data-theme=green] .tile,
-body[data-theme=green] .turn{border-color:var(--hair)}
+
+/* Midnight: the dark of a screen at 2am rather than the dark of a switched-off
+   one. Blue-cast and lifted a step off pure black, so panels read as a space
+   with depth in it rather than holes cut in a void. */
+body[data-theme=midnight]{
+  --bg:#070B14; --bg-2:#0D1420; --bg-3:#182233;
+  --fg:#DCE6F2; --muted:#8B9DB6; --faint:#61748C;
+  --hair-c:#1E2B3D; --hair2-c:#151F2E; --wash:#0B1220;
+}
 
 /* Interface scale. The design is set in px rather than rem, so scaling the
    root font size would move nothing -- `zoom` on the body is the honest
@@ -110,10 +136,25 @@ body[data-grain=false] .noise{display:none}
 body[data-serif=false]{--serif:var(--sans)}
 body[data-wide=false] .shell,
 body[data-wide=false] .set{max-width:1180px;margin-left:auto;margin-right:auto}
+
+/* Settings and Extract are pages, not panels laid over the session, so the
+   session's own controls go with the session. The view tabs and the Sources
+   filter would otherwise sit on top of a page they cannot affect -- switching
+   to "Table" while looking at Settings changes a view that is not on screen.
+   What is left is what still means something there: the brand (which links
+   back), the clock, the two page links, and Stop. */
+body.pageopen [data-view],
+body.pageopen #dd-src{display:none}
+
+/* ...and say so, rather than leaving the brand as the only way back. */
+body.pageopen .logo::after{content:'— back to the session';margin-left:10px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint)}
+body.pageopen .logo:hover::after{color:var(--fg)}
 body[data-stickynav=false] .nav{position:static}
 body[data-shadow=true] .panel,body[data-shadow=true] .tile,
 body[data-shadow=true] .turn,body[data-shadow=true] .dd-p,
-body[data-shadow=true] .cs-p{box-shadow:0 2px 10px rgba(26,25,23,.07)}
+body[data-shadow=true] .cs-p{box-shadow:0 2px 10px rgba(var(--shadow-c),.07)}
 body[data-uplat=false] .label,body[data-uplat=false] .pill,
 body[data-uplat=false] .badge,body[data-uplat=false] th,
 body[data-uplat=false] .wf-l,body[data-uplat=false] .ik,
@@ -183,9 +224,9 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .dd-p{position:absolute;top:calc(100% + 7px);right:0;z-index:70;
   min-width:250px;max-width:min(340px,92vw);max-height:min(64vh,460px);
   overflow:auto;overscroll-behavior:contain;
-  background:var(--bg-2);border:1px solid var(--hair);
+  background:var(--bg-2);border:1px solid var(--pop-edge);
   border-radius:var(--radius);padding:6px;
-  box-shadow:0 10px 26px rgba(26,25,23,.12)}
+  box-shadow:0 10px 26px rgba(var(--shadow-c),.12)}
 .dd-p[hidden]{display:none}
 .dd-h{font-family:var(--mono);font-size:9px;text-transform:uppercase;
   letter-spacing:.16em;color:var(--faint);padding:8px 8px 4px;margin:0}
@@ -491,7 +532,7 @@ h1{font-family:var(--serif);font-weight:400;font-size:clamp(27px,4.2vw,42px);
 .tip{position:fixed;z-index:95;pointer-events:none;max-width:min(340px,86vw);
   background:var(--fg);color:var(--bg);font-family:var(--mono);font-size:10.5px;
   line-height:1.55;padding:7px 10px;border-radius:4px;
-  box-shadow:0 6px 20px rgba(26,25,23,.24)}
+  box-shadow:0 6px 20px rgba(var(--shadow-c),.24)}
 .tip[hidden]{display:none}
 .tip .r{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tip .k{opacity:.6}
@@ -649,9 +690,9 @@ body[data-density=compact] .tile{padding:10px 11px}
 .cs-b .caret{font-size:9px;opacity:.65;flex:0 0 auto}
 .cs-p{position:absolute;top:calc(100% + 5px);right:0;z-index:75;
   min-width:100%;max-width:min(320px,92vw);max-height:min(58vh,420px);
-  overflow:auto;background:var(--bg-2);border:1px solid var(--hair);
+  overflow:auto;background:var(--bg-2);border:1px solid var(--pop-edge);
   border-radius:var(--radius);padding:5px;
-  box-shadow:0 10px 26px rgba(26,25,23,.12)}
+  box-shadow:0 10px 26px rgba(var(--shadow-c),.12)}
 .cs-p[hidden]{display:none}
 .cs-i{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
   padding:6px 8px;border-radius:3px;font-family:var(--mono);font-size:11.5px;

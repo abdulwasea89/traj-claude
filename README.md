@@ -58,7 +58,21 @@ anyway — and binds to `127.0.0.1` only. Three views:
 - **Table** — every event, filterable, expandable.
 
 Plus a **Settings** page (~140 knobs, all of which change real behaviour) and an
-**Extract** page that writes the current view to JSON, Markdown, or CSV.
+**Extract** page that writes the current view to JSON, Markdown, or CSV. Both are
+pages in their own right — the session's view tabs and source filter come off the
+nav while one is open, and the brand in the corner links back.
+
+Four palettes, under Settings → Appearance → Palette:
+
+| | |
+|---|---|
+| **paper** | warm off-white, the default |
+| **ink** | true `#000000`, for an OLED panel |
+| **green** | that black, cast green |
+| **midnight** | that black, cast blue |
+
+The themes move only the background ramp. The accent colour stays yours, so
+changing theme never quietly undoes the Accent colour setting.
 
 Its settings live in `dashboard/trajectory.config.json`, next to the script,
 created on first save. It never writes to `~/.claude/settings.json`.
