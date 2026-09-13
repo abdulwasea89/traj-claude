@@ -2514,28 +2514,55 @@ function markRow(k){
   });
 }
 
-function openSettings(open){
-  const page = $('#settings');
-  if(!page) return;
-  /* Only ever one full-screen page at a time: two stacked pages is how you end
-     up pressing Back twice to see the session again. */
-  if(open) openExport(false);
-  page.hidden = !open;
-  $('.shell').hidden = !!open;
-  const b = $('[data-settings]');
-  if(b) b.setAttribute('aria-pressed', String(!!open));
-  document.body.classList.toggle('setopen', !!open);
-  if(open){ SETCAT = SETCAT || GROUP_ORDER[0] || ''; renderSettings(); }
+/* Showing a page and putting it in the address bar are two different jobs.
+   showPage() only moves the DOM; openPage() records the move in history and
+   the router below replays it. Keeping them apart is what makes Back work
+   without the router and the history writing each other in a loop. */
+function showPage(name){
+  const s = $('#settings'), e = $('#export');
+  if(!s || !e) return;
+  s.hidden = name !== 'settings';
+  e.hidden = name !== 'export';
+  $('.shell').hidden = name !== '';
+  document.body.classList.toggle('pageopen', name !== '');
+  const sb = $('[data-settings]');
+  if(sb) sb.setAttribute('aria-pressed', String(name === 'settings'));
+  const eb = $('[data-page="export"]');
+  if(eb) eb.setAttribute('aria-pressed', String(name === 'export'));
+  if(name === 'settings'){ SETCAT = SETCAT || GROUP_ORDER[0] || ''; renderSettings(); }
+  if(name === 'export') renderExport();
+  /* Only ever one full-screen page at a time, and never a stale dropdown or
+     tooltip floating over it. */
   closeCS();
   tipHide();
-  if(open) window.scrollTo(0, 0);
-  /* The route is the hash, so the page a session link points at is the page
-     you get, and Back leaves settings rather than leaving the dashboard. */
-  const want = open ? '#settings' : '#';
+  if(name) window.scrollTo(0, 0);
+}
+
+function pageName(){
+  return $('#settings').hidden ? ($('#export').hidden ? '' : 'export') : 'settings';
+}
+
+function openPage(name){
+  if(pageName() === name) return;
+  showPage(name);
+  const want = name ? '#'+name : '#';
   if(location.hash !== want){
-    try{ history.replaceState(null, '', want); }catch(e){ location.hash = want; }
+    try{ history.pushState(null, '', want); }
+    catch(e){ location.hash = want; }   /* file:// and friends */
   }
 }
+
+function openSettings(open){ openPage(open ? 'settings' : ''); }
+function openExport(open){ openPage(open ? 'export' : ''); }
+
+/* The hash is the route: a link to #export opens the Extract page, and Back
+   leaves it for the session instead of leaving the site. */
+function routeFromHash(){
+  const h = location.hash.replace(/^#/, '');
+  showPage(h === 'settings' ? 'settings' : h === 'export' ? 'export' : '');
+}
+window.addEventListener('popstate', routeFromHash);
+window.addEventListener('hashchange', routeFromHash);
 
 /* --- the custom select -------------------------------------------------- */
 function closeCS(except){

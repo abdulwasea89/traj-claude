@@ -30,7 +30,10 @@ from datetime import datetime
 from pathlib import Path
 
 HOME = Path.home()
-CLAUDE = HOME / ".claude"
+# Claude Code lets you move its directory with CLAUDE_CONFIG_DIR, so honour it
+# rather than assuming ~/.claude -- the alternative is a tool that silently
+# reads nothing on a machine where that variable is set.
+CLAUDE = Path(os.environ.get("CLAUDE_CONFIG_DIR") or (HOME / ".claude"))
 PROJECTS = CLAUDE / "projects"
 
 ANSI_RE = re.compile(r"\033\[[0-9;]*m")
@@ -57,7 +60,11 @@ TOTAL_W = 92
 #   attr            written to document.body.dataset under that name
 #
 # Everything else is handled explicitly in the page's applyCfg().
-CONFIG_PATH = CLAUDE / "scripts" / "trajectory.config.json"
+# Settings live next to this script, not at a fixed path under ~/.claude. A
+# clone can sit anywhere -- ~/code/traj-claude, C:\tools\traj-claude -- and
+# still keep its own config, and it never writes into the directory Claude Code
+# owns beyond reading transcripts out of it.
+CONFIG_PATH = Path(__file__).resolve().parent / "trajectory.config.json"
 # serve() is threaded, so settings writes must be serialized.
 CONFIG_LOCK = __import__("threading").Lock()
 
@@ -1013,16 +1020,28 @@ def status_block(path, records):
     them: that file owns the dedupe-by-message.id accounting, the byte-offset
     cache and the cost derivation, and two copies of those would drift. Any
     failure just drops the block -- the dashboard is still useful without it.
+
+    Two places are searched, in order: the copy the installer put in the Claude
+    Code directory, and the one sitting next to this checkout. That way the
+    block appears whether or not the status line was installed.
     """
     import importlib.util
 
-    try:
-        spec = importlib.util.spec_from_file_location(
-            "claude_statusline", CLAUDE / "statusline-command.py"
-        )
-        sl = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(sl)
-    except Exception:
+    here = Path(__file__).resolve().parent
+    candidates = [CLAUDE / "statusline-command.py",
+                  here.parent / "statusline" / "statusline-command.py"]
+    sl = None
+    for cand in candidates:
+        if not cand.is_file():
+            continue
+        try:
+            spec = importlib.util.spec_from_file_location("claude_statusline", cand)
+            sl = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(sl)
+            break
+        except Exception:
+            sl = None
+    if sl is None:
         return None
 
     try:

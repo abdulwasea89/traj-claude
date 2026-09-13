@@ -2,7 +2,9 @@ __pycache__/
 *.py[cod]
 
 # Created on the first settings save. The defaults already live in
-# CONFIG_SPEC, so this file is your own state, not part of the project.
+# CONFIG_SPEC in dashboard/trajectory.py, so this file is your own state,
+# not part of the project.
+dashboard/trajectory.config.json
 trajectory.config.json
 
 .DS_Store
