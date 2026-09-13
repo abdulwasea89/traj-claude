@@ -82,6 +82,21 @@ hand and it survives every switch: a palette claims the accent only while it is
 still the one the last palette put there. A palette name from an older build
 (`ink`, `green`) reads as the stock it became rather than resetting to paper.
 
+Text clears AA (4.5:1) on **light, dark, midnight and oled**. The small voices —
+the 9.5px labels, the timestamps, the `--faint` ramp — are what that is measured
+against, and two stocks needed work to get there: midnight's and dark's `--faint`
+were under 4.5:1, and oled's ramp was one step too light. `paper` is left exactly
+as it was, so its `--faint` still measures 2.8:1. `solarized` is the one palette
+that cannot get there without ceasing to be Solarized: base2 is only 1.13:1 from
+base3, so nothing clears AA on a base2 card, and the two secondary voices are
+read off Solarized's own blue-grey hue at the lightest steps that do. Its
+signature blue is left alone, so it reads about 3.2:1 as 10px text.
+
+Hairlines are not a grey at all: they are the stock's foreground at 10% and 5%,
+the derivation `DESIGN.md` calls for, so they read as a line rather than as white
+on black. **Hairline strength** in Settings scales them, 100 being the doc's 10%,
+0 removing every line.
+
 Its settings live in `dashboard/trajectory.config.json`, next to the script. It is
 written on the first change you make, or on the first page load that has a
 migration to record. It never writes to `~/.claude/settings.json`.

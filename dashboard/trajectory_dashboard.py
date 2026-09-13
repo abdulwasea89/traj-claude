@@ -75,6 +75,10 @@ CSS = r"""
      do the separating instead -- see the theme blocks below. */
   --pop-edge:var(--hair);
   --shadow-c:26,25,23;
+  /* The two colours that are only ever a warning or an alarm. Paper's values
+     are dark enough for a light ground; the dark stocks lift them below. */
+  --warn:#8A6A16;
+  --bad:#B3261E;
   --sans:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --serif:"Instrument Serif",Georgia,"Times New Roman",serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -100,16 +104,36 @@ CSS = r"""
    you cannot read. */
 body[data-theme=light],body[data-theme=dark],body[data-theme=midnight],
 body[data-theme=solarized],body[data-theme=oled]{
-  /* --hair is a mix of --hair-c, and a custom property is substituted where it
-     is *declared*: the :root declaration resolves against :root's --hair-c and
-     hands that finished colour down to everyone. A stock that changes --hair-c
-     on body would leave every hairline on the page paper's. So the mix is
-     restated here, on the element that carries the stock, and re-resolves
-     against that stock's own --hair-c. --pop-edge comes along because :root
-     defines it as var(--hair) and it would otherwise be frozen the same way. */
-  --hair:color-mix(in oklab, var(--hair-c) calc(var(--hair-a) * 1%), transparent);
-  --hair-2:color-mix(in oklab, var(--hair2-c) calc(var(--hair-a) * 1%), transparent);
+  /* Hairlines are the doc's *derivation*, not an opaque grey: "border-foreground
+     /10 lines, /5 row rules". An opaque --border token at full strength reads as
+     a white line on a near-black page, which is what a stock's 0.31 border did.
+     Mixing the stock's own foreground keeps that relationship on every stock,
+     light or dark, and the Hairline strength knob still scales it: 100 is the
+     doc's 10% and 5%, 0 removes every line.
+
+     --pop-edge comes along because :root defines it as var(--hair) and it would
+     otherwise be resolved there and frozen at paper's value. */
+  --hair:color-mix(in oklab, var(--fg) calc(var(--hair-a) * 0.1%), transparent);
+  --hair-2:color-mix(in oklab, var(--fg) calc(var(--hair-a) * 0.05%), transparent);
   --pop-edge:var(--hair);
+}
+
+/* A source colour is a saved setting, and the defaults were picked against
+   paper's light ground: an amber or a blue that reads there muddies into a
+   near-black page. Rather than a second colour to keep in step, the text that
+   speaks in a source colour takes that colour mixed toward the stock's
+   foreground -- the hue is the user's, the lightness is the stock's. Lifting is
+   off wherever the ground is light, so paper and the light stocks are untouched
+   by this and it only ever costs a dark stock a mix. */
+:root{--src-lift:100%}
+body[data-theme=midnight],body[data-theme=dark],body[data-theme=oled]{
+  --src-lift:58%;
+  /* DESIGN.md's own pair: the midnight table's --destructive is 0.62 0.18 25.
+     At 0.62 it is still under AA on a 0.16 ground, so it is set here at the
+     lightness that reads -- an alarm colour that cannot be read is not one.
+     --warn is the same treatment for the amber the doc does not name. */
+  --warn:oklch(0.78 0.14 80);
+  --bad:oklch(0.72 0.17 25);
 }
 body[data-theme=dark],body[data-theme=midnight],body[data-theme=oled]{
   --pop-edge:color-mix(in oklab, var(--fg) 16%, transparent);
@@ -133,9 +157,7 @@ body[data-theme=light]{
   --bg-3:oklch(0.93 0.012 90);      /* #EBE8DF  hover/fill */
   --fg:oklch(0.22 0.01 90);         /* #1C1A15  foreground */
   --muted:oklch(0.52 0.012 90);     /* #6B6961  muted copy */
-  --faint:oklch(0.68 0.012 90);     /* #9B9890  derived    */
-  --hair-c:oklch(0.89 0.01 90);     /* #DDDBD3  border     */
-  --hair2-c:oklch(0.93 0.01 90);    /* #EAE8E0  derived    */
+  --faint:oklch(0.53 0.012 90);     /* #6B685F  derived    */
   --wash:oklch(0.95 0.01 90);       /* #F1EEE7  derived    */
 }
 
@@ -148,9 +170,7 @@ body[data-theme=dark]{
   --bg-3:oklch(0.3 0.01 90);        /* #302E28  hover/fill */
   --fg:oklch(0.94 0.006 90);        /* #EDEBE7  foreground */
   --muted:oklch(0.7 0.01 90);       /* #A19E98  muted copy */
-  --faint:oklch(0.55 0.01 90);      /* #74716B  derived    */
-  --hair-c:oklch(0.33 0.008 90);    /* #373531  border     */
-  --hair2-c:oklch(0.26 0.008 90);   /* #252420  derived    */
+  --faint:oklch(0.66 0.01 90);      /* #8B8881  derived    */
   --wash:oklch(0.22 0.008 90);      /* #1C1A16  derived    */
 }
 
@@ -174,20 +194,31 @@ body[data-theme=midnight]{
   --bg-3:oklch(0.26 0.016 165);     /* #1D2722  hover/fill */
   --fg:oklch(0.95 0.008 160);       /* #EAF0ED  foreground */
   --muted:oklch(0.72 0.016 165);    /* #9CA8A2  muted copy */
-  --faint:oklch(0.57 0.016 165);    /* #6F7B75  derived    */
-  --hair-c:oklch(0.31 0.014 165);   /* #2A332E  border     */
-  --hair2-c:oklch(0.235 0.014 165); /* #18201C  derived    */
+  --faint:oklch(0.65 0.016 165);    /* #83908A  derived    */
   --wash:oklch(0.185 0.013 165);    /* #0D1511  derived    */
 }
 
 /* Solarized: the one light stock that is not warm-neutral. Classic Solarized
-   Light -- base3 sand, base01 for text, base1 for the secondary voice -- under
-   the doc's signature blue, which is also the one accent here that is not a
-   green. Depth stays with the hairlines, as everywhere else. */
+   Light -- base3 sand, base01 for text -- under the doc's signature blue, which
+   is also the one accent here that is not a green. Depth stays with the
+   hairlines, as everywhere else.
+
+   This stock's surfaces and its two secondary voices are the one place the
+   palette's own numbers are not used verbatim, and both follow from the same
+   measurement. base2 -- Solarized's "background highlight" -- is only 1.13:1
+   from base3, so a card in base2 has almost no contrast to give: on it,
+   base00 measures 3.64:1 and base1 measures 2.18:1, which is a 10px label you
+   cannot read. Solarized's steps were picked for syntax highlighting on base3,
+   where those ratios were never the point.
+
+   So the surfaces stay on Solarized's ramp and lift toward the sand instead of
+   away from it -- base2 is kept for the strongest fill, which is what the
+   palette means by a highlight, and the card is the step between base3 and it.
+   The secondary voices are then read off Solarized's own blue-grey hue at the
+   two lightest steps that clear AA on that card. fg is canonical: base01. */
 body[data-theme=solarized]{
-  --bg:#FDF6E3; --bg-2:#EEE8D5; --bg-3:#E4DDC8;
-  --fg:#586E75; --muted:#93A1A1; --faint:#A8B3AF;
-  --hair-c:#DDD5BE; --hair2-c:#E8E1CC; --wash:#F7F0DC;
+  --bg:#FDF6E3; --bg-2:#F8F0DD; --bg-3:#F0E9D4;
+  --fg:#586E75; --muted:#566B72; --faint:#5C7178; --wash:#FAF3E1;
 }
 
 /* OLED: the pixels switched off, so the surface is #000 and the hairlines carry
@@ -198,8 +229,7 @@ body[data-theme=solarized]{
    neon cyan, and it is the only non-green fill in the set. */
 body[data-theme=oled]{
   --bg:#000000; --bg-2:#0A0A0A; --bg-3:#161616;
-  --fg:#F0EFEC; --muted:#94918B; --faint:#6E6B65;
-  --hair-c:#242424; --hair2-c:#161616; --wash:#101010;
+  --fg:#F0EFEC; --muted:#94918B; --faint:#8A877F; --wash:#101010;
 }
 
 /* Interface scale. The design is set in px rather than rem, so scaling the
@@ -288,10 +318,12 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .pill[aria-pressed=true]{color:var(--fg);border-color:var(--brand);
   background:color-mix(in oklab, var(--brand) var(--tint), transparent)}
 .pill:disabled{cursor:default;opacity:.6}
-.pill.stop{color:#B3261E;
-  border-color:color-mix(in oklab, #B3261E 34%, transparent)}
-.pill.stop:hover{color:#8C1D18;
-  border-color:color-mix(in oklab, #8C1D18 60%, transparent)}
+.pill.stop{color:var(--bad);
+  border-color:color-mix(in oklab, var(--bad) 34%, transparent)}
+/* Hovering a destructive control should make it louder, which is toward the
+   foreground: darker on paper, lighter on the dark stocks. */
+.pill.stop:hover{color:color-mix(in oklab, var(--bad) 86%, var(--fg));
+  border-color:color-mix(in oklab, var(--bad) 60%, transparent)}
 .seg{display:inline-flex;gap:6px}
 
 /* --- dropdowns ---------------------------------------------------------- */
@@ -349,6 +381,11 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .shell{padding:22px 22px 72px;
   display:grid;grid-template-columns:minmax(0,var(--rail)) minmax(0,1fr);
   gap:26px;grid-template-areas:"side main";align-items:start}
+/* A display rule beats the `hidden` attribute, so every container that sets one
+   has to say what `hidden` means for itself. Without this the sessions rail and
+   the whole session view stayed laid out under Settings and Extract -- visible
+   the moment you scrolled past the page you had opened. */
+.shell[hidden]{display:none}
 .side{grid-area:side;min-width:0}
 .main{grid-area:main;min-width:0}
 
@@ -526,10 +563,10 @@ h1{font-family:var(--serif);font-weight:400;font-size:clamp(27px,4.2vw,42px);
   overflow:hidden;display:inline-block}
 .status .cbar i{display:block;height:100%}
 .status .pct{font-weight:500}
-.status .up{color:#2E6FB8}
-.status .down{color:#8A4FBF}
+.status .up{color:color-mix(in oklab, var(--src-toolcall) var(--src-lift), var(--fg))}
+.status .down{color:color-mix(in oklab, var(--src-text) var(--src-lift), var(--fg))}
 .status .sum{color:var(--brand)}
-.status .cost{color:#8A6A16}
+.status .cost{color:color-mix(in oklab, var(--src-inject) var(--src-lift), var(--fg))}
 .status .miss{color:var(--faint)}
 
 /* --- waterfall: per-turn Input / Model / Tools spans ---------------------
@@ -1045,8 +1082,8 @@ function pctColor(p){
   const warn = Number(CFG.ctx_warn_pct), danger = Number(CFG.ctx_danger_pct);
   const w = isFinite(warn) ? warn : 70;
   const g = (isFinite(danger) ? danger : 90);
-  if(p >= g) return '#B3261E';
-  if(p >= w) return '#8A6A16';
+  if(p >= g) return 'var(--bad)';
+  if(p >= w) return 'var(--warn)';
   return 'var(--brand)';
 }
 
@@ -1377,7 +1414,7 @@ function inspectHTML(ia, ib){
     (a.name ? field('tool', esc(a.name)) : '') +
     (a.call ? field('call id', esc(a.call), true) : '') +
     (a.for ? field('result of', esc(a.for), true) : '') +
-    (a.error ? field('status', '<span style="color:#B3261E">error</span>') : '') +
+    (a.error ? field('status', '<span style="color:var(--bad)">error</span>') : '') +
   '</div>';
 
   if(ib != null && b){
