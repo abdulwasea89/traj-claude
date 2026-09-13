@@ -2,22 +2,20 @@
 
 A single row at the bottom of Claude Code, in the space the status line uses:
 
-```
-deepseek-v4-flash │ scripts │ █████████░░░ │ 77% │ ctx 153.8k/200.0k │ ↑ in 97.77M │ ↓ out 614.7k │ Σ 3.47b │ 1018 msg │ $199.22
-```
+![The bar in place at the bottom of a real session — under the model's last line of output and above the permission prompt. It reads deepseek-v4-flash, scripts, a 31% context bar, ctx 61.1k/200.0k, up in 170.54M, down out 1.06M, a 3.47b all-time total, 1766 msg and $123.90.](../docs/img/statusline-in-place.png)
 
 | field | meaning |
 |---|---|
 | `deepseek-v4-flash` | the model serving this session |
 | `scripts` | the project directory you are in |
-| `█████████░░░` | context window used, colour-shifting green → yellow → orange → red |
-| `77%` | the same thing as a number |
-| `ctx 153.8k/200.0k` | tokens currently in the window, over your configured limit |
-| `↑ in 97.77M` | **cumulative** input: fresh input + cache reads + cache writes, all session |
-| `↓ out 614.7k` | cumulative output tokens this session |
+| `███████░░░` | context window used, colour-shifting green → yellow → orange → red |
+| `31%` | the same thing as a number |
+| `ctx 61.1k/200.0k` | tokens currently in the window, over your configured limit |
+| `↑ in 170.54M` | **cumulative** input: fresh input + cache reads + cache writes, all session |
+| `↓ out 1.06M` | cumulative output tokens this session |
 | `Σ 3.47b` | all-time tokens across every session, from Claude Code's own `stats-cache.json` |
-| `1018 msg` | your prompts plus the model's replies, this session |
-| `$199.22` | derived session cost — only shown when you supply rates |
+| `1766 msg` | your prompts plus the model's replies, this session |
+| `$123.90` | derived session cost — only shown when you supply rates |
 
 Fields drop out rather than showing a placeholder when they are not available:
 with no transcript yet you get the bar, `0%`, and `no transcript yet`.

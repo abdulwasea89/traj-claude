@@ -1,14 +1,12 @@
 # traj-claude
 
-Two small tools for **Claude Code**, no dependencies, on Linux, macOS and Windows.
+Two small tools for **Claude Code**. Plain Python 3.8+, no dependencies, on
+Linux, macOS and Windows. Neither one sends your data anywhere.
 
 | | |
 |---|---|
-| **[`statusline/`](statusline/)** | A status bar at the bottom of Claude Code: model, context bar, percent of window used, input/output tokens, message count, session cost. |
-| **[`dashboard/`](dashboard/)** | A local web page that reads the session log Claude Code already writes and shows you exactly which tokens are in the context window — reasoning, tool calls, injections, everything — as a timeline, a flow, or a table. |
-
-Both are plain Python 3.8+. Nothing to `pip install`. Neither one sends your
-data anywhere.
+| **[`statusline/`](statusline/)** | **A status bar for the bottom of the terminal** — model, project, a context bar and percent, cumulative in and out, all-time total, message count, session cost. |
+| **[`dashboard/`](dashboard/)** | **A local page over the transcript** — every token in your context window, who it belongs to, and when it arrived. |
 
 📖 **[Full documentation](https://abdulwasea89.github.io/traj-claude/)** — this
 README is the short version.
@@ -19,11 +17,72 @@ README is the short version.
 
 ---
 
+## Install
+
+Clone once. Both tools run from the checkout; there is no build step and
+nothing to `pip install`.
+
+```sh
+git clone https://github.com/abdulwasea89/traj-claude.git
+cd traj-claude
+```
+
+### The status bar
+
+```sh
+cd statusline
+python3 install.py          # on Windows: python install.py
+```
+
+Then **restart Claude Code** — the status line is read once, at startup.
+
+The installer copies `statusline-command.py` into your Claude Code directory and
+points `statusLine` at it in `settings.json`. It backs that file up first and
+touches only the one key —
+[exactly what it writes](statusline/README.md#what-it-does-to-your-settings).
+
+```sh
+python3 install.py --dry-run          # show what would change, write nothing
+python3 install.py --uninstall        # remove the statusLine entry again
+python3 install.py --python /usr/bin/python3.12
+```
+
+### The dashboard
+
+There is nothing to install. It reads the transcripts Claude Code already
+writes, at `~/.claude/projects/*/*.jsonl`.
+
+```sh
+cd dashboard
+python3 trajectory.py serve       # http://127.0.0.1:8788 — Ctrl-C to stop
+```
+
+`python3 trajectory.py` on its own starts the same server in the background and
+prints the address, so your shell comes straight back. It binds to `127.0.0.1`
+only: the transcript holds your prompts, your code and your file paths, so it
+does not go on a network.
+
+### Requirements
+
+| | |
+|---|---|
+| **Python** | 3.8 or newer — `python3 --version` |
+| **Dependencies** | none, and that is a constraint rather than luck |
+| **Platform** | Linux, macOS, Windows |
+| **Reads** | `~/.claude/projects/*/*.jsonl` and `stats-cache.json` |
+| **Writes** | the status line's cache in `~/.cache/claude-statusline`, the dashboard's `dashboard/trajectory.config.json`, and — only from `install.py` — one key of `~/.claude/settings.json` |
+
+---
+
 ## 1. The status bar
 
 Claude Code reserves one row at the bottom of the terminal. This fills it:
 
-![The status bar at the bottom of a Claude Code session — model, project, context bar, percent used, cumulative in and out, all-time total, message count and session cost](docs/img/statusline.png)
+![The bar in place at the bottom of a real Claude Code session — under the model's last line of output and above the permission prompt. It reads deepseek-v4-flash, scripts, a 31% context bar, ctx 61.1k/200.0k, up in 170.54M, down out 1.06M, a 3.47b all-time total, 1766 msg and $123.90.](docs/img/statusline-in-place.png)
+
+And the same bar, on its own:
+
+![The bar itself: deepseek-v4-flash, scripts, a 74% context bar, ctx 148.4k/200.0k, up in 166.29M, down out 1.04M, a 3.47b all-time total, 1717 msg and $120.75. Above it, Claude Code's own "11% until auto-compact" and a spinner line.](docs/img/statusline.png)
 
 | field | meaning |
 |---|---|
@@ -41,28 +100,6 @@ Claude Code reserves one row at the bottom of the terminal. This fills it:
 Fields drop out rather than showing a placeholder when they are not available:
 with no transcript yet you get the bar, `0%`, and `no transcript yet`.
 
-### Install it
-
-```sh
-git clone https://github.com/abdulwasea89/traj-claude.git
-cd traj-claude/statusline
-python3 install.py
-```
-
-On Windows use `python` instead of `python3`. Then restart Claude Code. That is
-the whole setup.
-
-`install.py` copies the script into your Claude Code directory (`~/.claude`, or
-`%USERPROFILE%\.claude` on Windows) and points `statusLine` at it in
-`settings.json`. It backs the file up first and touches only that one key —
-[exactly what it writes](statusline/README.md#what-it-does-to-your-settings).
-
-```
-python3 install.py --dry-run          # show what would change, write nothing
-python3 install.py --uninstall        # remove the statusLine entry
-python3 install.py --python /usr/bin/python3.12
-```
-
 ### Make it yours
 
 Set these as environment variables. Under Claude Code the reliable place is the
@@ -79,30 +116,27 @@ Set these as environment variables. Under Claude Code the reliable place is the
 | `CLAUDE_STATUSLINE_CACHE` | `~/.cache/claude-statusline` | where the scan cache lives |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude Code's directory, if you have moved it |
 
-Costs, troubleshooting and every field in more detail:
+Costs, every field, and troubleshooting:
 **[statusline/README.md](statusline/README.md)**.
 
 ## 2. The trajectory dashboard
 
 The transcript Claude Code writes contains everything the model saw. This reads
-it and shows you the shape of it.
+it and shows you the shape of it — and answers the question the transcript makes
+surprisingly hard: *what is actually in my context window, and when did it get
+there?*
 
-![The dashboard on midnight: the session list, the session header, the context window broken down by source with a per-minute volume chart, the billed totals, and one tile per source](docs/img/dashboard.png)
+![The dashboard on midnight: the session list down the left, the session header with its live status line, the context window broken down by source with a per-minute volume chart, the usage the API billed, and one tile per source](docs/img/dashboard.png)
 
-```sh
-cd traj-claude/dashboard
-python3 trajectory.py            # a report in the terminal
-python3 trajectory.py serve      # http://127.0.0.1:8788
-```
+Every session on disk down the left, the current one's header and status line
+across the top, then the context window broken down by source, a per-minute
+volume chart, the usage the API actually billed, and one tile per source. Every
+token in the window has an owner.
 
-It reads `~/.claude/projects/*/*.jsonl` and binds to `127.0.0.1` only — the
-transcript holds your prompts, your code and your file paths, so it does not go
-on a network.
+![The event stream: one block per turn, headed by its record, token and duration totals, each a grid of Input, Model, Output and Tools lanes with bars along a shared time axis](docs/img/trajectory.png)
 
-![The event stream: a legend naming the four lanes, then one block per turn headed by its record, token and duration totals, each block a grid of Input, Model, Output and Tools rows with bars along a shared time axis](docs/img/trajectory.png)
-
-The bar chart is the point of the whole thing. Each turn is one row, split
-into four lanes:
+Under the header is the **event stream**. Each turn is one row, split into four
+lanes:
 
 | lane | what it measures |
 |---|---|
@@ -111,15 +145,18 @@ into four lanes:
 | **Output** | it writing the answer |
 | **Tools** | tools running |
 
-A turn that took four minutes and a turn that took four minutes and nineteen
-tool calls look identical in a transcript and completely different here. Hover
-any bar for the span it covers; click one for the full record.
+A lane is read off what the span points at, so the width of a turn tells you how
+much of it was waiting on the model, how much was it thinking, how much was it
+writing, and how much was tools running. A turn that took four minutes and a
+turn that took four minutes and nineteen tool calls look identical in a
+transcript and completely different here. Hover any bar for the span it covers;
+click one for the full record.
 
 ### Three views and two pages
 
-- **Timeline** — the event stream above, plus the per-source breakdown and one
-  tile per source: tokens, events and share of the window. Click a tile to
-  filter every view to it.
+- **Timeline** — the event stream, plus the per-source breakdown and one tile
+  per source: tokens, events and share of the window. Click a tile to filter
+  every view to it.
 - **Flow** — the session as nested steps, with each tool call paired to the
   result it produced.
 - **Table** — every event, in order, filterable and expandable.
@@ -146,25 +183,26 @@ Under Settings → Appearance → Palette. Five are `DESIGN.md`'s own stocks, an
 | **paper** | this dashboard's own warm off-white |
 
 A palette brings the accent `DESIGN.md` pairs with it — a lighter green on the
-dark stocks, because a 0.52 green sinks into a 0.16 background. Pick an accent by
-hand and it survives every switch: a palette claims the accent only while it is
-still the one the last palette put there. A palette name from an older build
+dark stocks, because a 0.52 green sinks into a 0.16 background. Pick an accent
+by hand and it survives every switch: a palette claims the accent only while it
+is still the one the last palette put there. A palette name from an older build
 (`ink`, `green`) reads as the stock it became rather than resetting to paper.
 
 Text clears AA (4.5:1) on **light, dark, midnight and oled**. The small voices —
 the 9.5px labels, the timestamps, the `--faint` ramp — are what that is measured
-against, and two stocks needed work to get there: midnight's and dark's `--faint`
-were under 4.5:1, and oled's ramp was one step too light. `paper` is left exactly
-as it was, so its `--faint` still measures 2.8:1. `solarized` is the one palette
-that cannot get there without ceasing to be Solarized: base2 is only 1.13:1 from
-base3, so nothing clears AA on a base2 card, and the two secondary voices are
-read off Solarized's own blue-grey hue at the lightest steps that do. Its
-signature blue is left alone, so it reads about 3.2:1 as 10px text.
+against, and two stocks needed work to get there: midnight's and dark's
+`--faint` were under 4.5:1, and oled's ramp was one step too light. `paper` is
+left exactly as it was, so its `--faint` still measures 2.8:1. `solarized` is
+the one palette that cannot get there without ceasing to be Solarized: base2 is
+only 1.13:1 from base3, so nothing clears AA on a base2 card, and the two
+secondary voices are read off Solarized's own blue-grey hue at the lightest
+steps that do. Its signature blue is left alone, so it reads about 3.2:1 as
+10px text.
 
 Hairlines are not a grey at all: they are the stock's foreground at 10% and 5%,
-the derivation `DESIGN.md` calls for, so they read as a line rather than as white
-on black. **Hairline strength** in Settings scales them, 100 being the doc's 10%,
-0 removing every line.
+the derivation `DESIGN.md` calls for, so they read as a line rather than as
+white on black. **Hairline strength** in Settings scales them, 100 being the
+doc's 10%, 0 removing every line.
 
 A source colour is a saved setting, and its default was picked against paper's
 light ground: a bar that reads at one lightness there sinks into a near-black
@@ -186,28 +224,14 @@ coloured from `--bg-3` on `html`: the themes declare that token on `body`, so on
 `html` it fell back to paper's light value and drew a white bar down the side of
 every dark stock.
 
-Its settings live in `dashboard/trajectory.config.json`, next to the script. It is
-written on the first change you make, or on the first page load that has a
+Its settings live in `dashboard/trajectory.config.json`, next to the script. It
+is written on the first change you make, or on the first page load that has a
 migration to record. **It never writes to `~/.claude/settings.json`.**
-
-## Installation
-
-Nothing to install beyond the clone. Both tools are standard-library Python 3.8+
-and are run from the checkout.
-
-| | |
-|---|---|
-| **Python** | 3.8 or newer. `python3 --version` |
-| **Dependencies** | none, and that is a constraint rather than luck |
-| **Platform** | Linux, macOS, Windows |
-| **Status bar** | `python3 install.py` in `statusline/`, then restart Claude Code |
-| **Dashboard** | nothing — `python3 trajectory.py` in `dashboard/` |
-| **What it writes** | the status line's cache in `~/.cache/claude-statusline`; the dashboard's `dashboard/trajectory.config.json`; and only `install.py` ever touches `~/.claude/settings.json`, one key |
 
 ## Advanced
 
-**The terminal report.** `trajectory.py --text` renders the same numbers as the
-page, as text — useful over SSH, or in a script.
+**The terminal report.** `--text` renders the same numbers as the page, as text
+— useful over SSH, or in a script.
 
 ```sh
 python3 trajectory.py --text
@@ -215,6 +239,9 @@ python3 trajectory.py --text --limit 100 --source reasoning
 python3 trajectory.py --all            # every session on disk
 python3 trajectory.py de2b7ace         # one session, by id or id-prefix
 ```
+
+`--limit` applies to the text report only; `--html` writes the whole session
+regardless.
 
 **A static snapshot.** `--html` writes a single self-contained file — no server,
 no live updates. That is what you want when attaching it to a bug report rather
@@ -224,21 +251,22 @@ than watching it.
 python3 trajectory.py --html --out session.html
 ```
 
-**A different Claude Code directory.** Both tools read `CLAUDE_CONFIG_DIR`, so
-you can point them at a copied directory and analyse a transcript from another
-machine without touching your own:
+**A different port, or a different Claude Code directory.** Both tools read
+`CLAUDE_CONFIG_DIR`, so you can point them at a copied directory and analyse a
+transcript from another machine without touching your own:
 
 ```sh
+python3 trajectory.py serve --port 9000
 CLAUDE_CONFIG_DIR=/mnt/backup/claude python3 trajectory.py --all
 ```
 
 **The config file.** Every knob in Settings is in
 `dashboard/trajectory.config.json`, keyed by the name the page shows. Delete the
-file and the dashboard comes back up on its defaults. A knob that does not change
-real behaviour is a bug, not a placeholder.
+file and the dashboard comes back up on its defaults. A knob that does not
+change real behaviour is a bug, not a placeholder.
 
-**Everything else** — the full command line, the server knobs, the payload caps,
-where each tool stores things, and troubleshooting:
+**Everything else** — the full command line, the server knobs, where each tool
+stores things, and troubleshooting:
 **[abdulwasea89.github.io/traj-claude](https://abdulwasea89.github.io/traj-claude/)**.
 
 ## Why the numbers are right
@@ -254,6 +282,34 @@ cheap, are in the docstring at the top of `statusline/statusline-command.py`.
 Page-level sizes are a different thing: those are characters, not tokens, and
 are estimated so that sources are comparable with each other. The session's real
 billed usage is reported separately and is never an estimate.
+
+## Troubleshooting
+
+**The bar does not appear.** Run it by hand — a status line that crashes prints
+nothing, which looks identical to one that was never configured:
+
+```sh
+echo '{"model":{"display_name":"test"},"cwd":"/tmp"}' | python3 ~/.claude/statusline-command.py
+```
+
+It should print a bar. If it does not, the `statusLine` entry is not in
+`settings.json`, or `CLAUDE_CONFIG_DIR` points somewhere else.
+
+**The percentage is wrong.** `CLAUDE_CONTEXT_LIMIT` defaults to `200000`. If
+your model's window is a different size, the bar and the percent are both scaled
+wrong.
+
+**It is slow.** The first render on a long session scans the whole transcript;
+after that it reads only the bytes appended since. Delete
+`~/.cache/claude-statusline` to force a full rescan.
+
+**Cost shows `$0.00` or nothing at all.** No rates are set, or the gateway
+reports its own cost as zero — many do. Supply `CLAUDE_COST_*` and the figure is
+derived from token counts instead.
+
+**The dashboard says no transcript found.** It looks under
+`$CLAUDE_CONFIG_DIR/projects` (`~/.claude/projects` by default). If that
+directory is empty, Claude Code has not written a session there yet.
 
 ## Collaborating
 

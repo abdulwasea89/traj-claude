@@ -231,15 +231,6 @@ tr:last-child td{border-bottom:0}
 .sw .m code{display:block;margin-top:6px;background:none;padding:0;
   font-size:11.5px;color:var(--c-mut)}
 
-.steps{counter-reset:s;list-style:none;padding:0;margin:0 0 18px}
-.steps>li{counter-increment:s;position:relative;padding-left:36px;margin:0 0 14px;
-  max-width:74ch}
-.steps>li::before{
-  content:counter(s);position:absolute;left:0;top:1px;width:22px;height:22px;
-  border-radius:50%;background:var(--bg-3);border:1px solid var(--hair);
-  color:var(--muted);font:11px/21px var(--mono);text-align:center;
-}
-
 footer{border-top:1px solid var(--hair);margin-top:64px;padding-top:22px;
   color:var(--faint);font-size:13px;display:flex;gap:14px;flex-wrap:wrap}
 footer a{color:var(--muted)}
@@ -359,9 +350,11 @@ footer .sp{margin-left:auto}
 
     <p>
       Neither one sends your data anywhere. There is no telemetry, no account,
-      no network call. The dashboard binds to loopback only. The only thing
-      either tool writes is its own cache and the dashboard's config file, both
-      of which stay on your machine.
+      no network call, and the dashboard binds to loopback only. The one thing
+      that reaches outside the checkout is the status bar's installer, which
+      sets a single key in <code>settings.json</code> — everything else is
+      written next to the tools themselves. <a href="#install">Install</a> has
+      the full list.
     </p>
 
     <div class="note warn">
@@ -373,31 +366,59 @@ footer .sp{margin-left:auto}
 
     <h2 id="install"><span class="n">§</span>Install</h2>
     <p>
-      Clone the repository. Nothing to <code>pip install</code>; both tools are
+      Clone the repository once. Both tools run from the checkout — there is no
+      build step and nothing to <code>pip install</code>, because both are
       standard-library Python 3.8 or newer.
     </p>
 <pre><code>git clone https://github.com/abdulwasea89/traj-claude.git
 cd traj-claude</code></pre>
 
-    <ol class="steps">
-      <li>
-        <strong>Install the status bar.</strong>
-<pre><code>cd statusline &amp;&amp; python3 install.py</code></pre>
-        <span style="color:var(--muted)">On Windows, <code>python</code> instead
-        of <code>python3</code>. Then restart Claude Code.</span>
-      </li>
-      <li>
-        <strong>Start the dashboard.</strong>
-<pre><code>cd ../dashboard &amp;&amp; python3 trajectory.py</code></pre>
-        <span style="color:var(--muted)">It starts a local server and prints
-        the address — <code>http://127.0.0.1:8788</code> unless you have set
-        another port.</span>
-      </li>
-      <li>
-        <strong>Open the address.</strong> Stop the server from the page, or
-        with the command <code>trajectory.py</code> prints on startup.
-      </li>
-    </ol>
+    <h3>Install the status bar</h3>
+    <p>
+      The installer copies <code>statusline-command.py</code> into your Claude
+      Code directory and points <code>statusLine</code> at it in
+      <code>settings.json</code>.
+    </p>
+<pre><code>cd statusline
+python3 install.py</code></pre>
+    <p>
+      On Windows use <code>python</code> instead of <code>python3</code>. Then
+      <strong>restart Claude Code</strong> — a status line is read once, at
+      startup, so a bar that does not appear is usually a session that was
+      already running.
+    </p>
+<pre><code>python3 install.py --dry-run          # show what would change, write nothing
+python3 install.py --uninstall        # remove the statusLine entry again
+python3 install.py --python /usr/bin/python3.12</code></pre>
+    <p>
+      It backs <code>settings.json</code> up first and writes exactly one key —
+      <a href="#installer">what the installer does to your settings</a>, below.
+    </p>
+
+    <h3>Run the dashboard</h3>
+    <p>
+      There is nothing to install. It reads the transcripts Claude Code already
+      writes, under <code>~/.claude/projects</code>.
+    </p>
+<pre><code>cd dashboard
+python3 trajectory.py serve       # http://127.0.0.1:8788 — Ctrl-C to stop</code></pre>
+    <p>
+      <code>python3 trajectory.py</code> on its own starts the same server in the
+      background, prints the address and gives your shell straight back. Either
+      way it binds to <code>127.0.0.1</code> only — the transcript holds your
+      prompts, your code and your file paths, so it does not go on a network.
+    </p>
+
+    <h3>Requirements</h3>
+    <table>
+      <tbody>
+        <tr><td><strong>Python</strong></td><td>3.8 or newer — check with <code>python3 --version</code></td></tr>
+        <tr><td><strong>Dependencies</strong></td><td>none, and that is a constraint rather than luck</td></tr>
+        <tr><td><strong>Platform</strong></td><td>Linux, macOS, Windows</td></tr>
+        <tr><td><strong>Reads</strong></td><td><code>~/.claude/projects/*/*.jsonl</code> and <code>stats-cache.json</code></td></tr>
+        <tr><td><strong>Writes</strong></td><td>the status line's cache in <code>~/.cache/claude-statusline</code>, the dashboard's <code>dashboard/trajectory.config.json</code>, and — only from <code>install.py</code> — one key of <code>~/.claude/settings.json</code></td></tr>
+      </tbody>
+    </table>
 
     <h2 id="statusline"><span class="n">1</span>The status bar</h2>
     <p class="lead">
@@ -406,9 +427,21 @@ cd traj-claude</code></pre>
     </p>
 
     <figure>
+      <img src="img/statusline-in-place.png" width="1365" height="729"
+           alt="A real Claude Code session in a terminal window titled Token usage and context display. The bar is the last row: deepseek-v4-flash, scripts, a 31% context bar, ctx 61.1k/200.0k, up in 170.54M, down out 1.06M, a 3.47b all-time total, 1766 msg and $123.90. Below it, the bypass-permissions line.">
+      <figcaption>
+        In place. The bar is the last row of the window — under the input
+        prompt, above Claude Code's own permission line.
+      </figcaption>
+    </figure>
+
+    <figure>
       <img src="img/statusline.png" width="1366" height="155"
-           alt="The bar in place at the bottom of a Claude Code session: deepseek-v4-flash, scripts, a 74% context bar, ctx 148.4k/200.0k, up in 166.29M, down out 1.04M, a 3.47b all-time total, 1717 msg and $120.75.">
-      <figcaption>In place, at the bottom of a real session.</figcaption>
+           alt="The bar on its own: deepseek-v4-flash, scripts, a 74% context bar, ctx 148.4k/200.0k, up in 166.29M, down out 1.04M, a 3.47b all-time total, 1717 msg and $120.75.">
+      <figcaption>
+        The bar itself, at 74% full. The line above it is Claude Code's, not
+        this bar's — <code>11% until auto-compact</code>.
+      </figcaption>
     </figure>
 
     <table>
@@ -433,7 +466,7 @@ cd traj-claude</code></pre>
       <code>no transcript yet</code>.
     </p>
 
-    <h3>What the installer does to your settings</h3>
+    <h3 id="installer">What the installer does to your settings</h3>
     <p>
       Editing a file Claude Code owns deserves specifics, so:
     </p>
