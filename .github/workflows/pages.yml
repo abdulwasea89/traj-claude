@@ -42,7 +42,9 @@ jobs:
           # the middle of a screenshot. Cheap to check, and the failure mode is
           # silent otherwise -- the alt text just renders.
           missing=0
-          for src in $(grep -o 'src="[^"]*"' docs/index.html | cut -d'"' -f2); do
+          # `|| true` because a grep that matches nothing exits 1, and under
+          # `set -e` that would fail the build for a page with no images in it.
+          for src in $(grep -o 'src="[^"]*"' docs/index.html | cut -d'"' -f2 || true); do
             case "$src" in
               http*|data:*|//*) continue ;;
             esac
