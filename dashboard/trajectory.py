@@ -71,8 +71,10 @@ CONFIG_LOCK = __import__("threading").Lock()
 CONFIG_SPEC = [
     # ---------------------------------------------------------- appearance
     {"k": "theme", "g": "Appearance", "l": "Palette", "t": "enum",
-     "d": "paper", "opts": ["paper", "ink"], "attr": "theme", "scope": "live",
-     "h": "Paper is the light stock; ink is the dark one"},
+     "d": "paper", "opts": ["paper", "ink", "green"], "attr": "theme",
+     "scope": "live",
+     "h": "Paper is the light stock, ink is true black, green is that black "
+          "cast green. The accent is still the Accent colour knob"},
     {"k": "density", "g": "Appearance", "l": "Density", "t": "enum",
      "d": "comfortable", "opts": ["comfortable", "compact"], "attr": "density",
      "scope": "live", "h": "Row padding across every list on the page"},
@@ -266,7 +268,12 @@ CONFIG_SPEC = [
      "d": True, "scope": "live", "h": "The record's own content"},
     {"k": "table_full", "g": "Table", "l": "Full text in rows", "t": "bool",
      "d": False, "scope": "live",
-     "h": "Off truncates the column so rows stay one line"},
+     "h": "On shows the whole record and lets rows grow; off clips to the "
+          "line count below"},
+    {"k": "table_clamp", "g": "Table", "l": "Excerpt lines", "t": "int",
+     "d": 2, "min": 1, "max": 8, "step": 1, "cssvar": "--tclamp",
+     "scope": "live",
+     "h": "Lines of a record shown before the excerpt is clipped"},
     {"k": "table_zebra", "g": "Table", "l": "Striped rows", "t": "bool",
      "d": False, "attr": "zebra", "scope": "live",
      "h": "Alternate row shading"},

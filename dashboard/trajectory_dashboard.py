@@ -48,6 +48,7 @@ CSS = r"""
   --insp:600px;
   --trh:26px;
   --clamp:2;
+  --tclamp:2;
   --indent:18px;
   --spark:46px;
   --wf-h:11px;
@@ -69,13 +70,32 @@ CSS = r"""
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 
-/* The dark stock. Same structure, inverted ramp -- set by the palette knob. */
+/* The dark stock: true black, not dark grey. On an OLED panel a #000
+   background is the pixels switched off, and the hairlines are what carry the
+   structure instead of a lifted surface. The panels are lifted by the smallest
+   step that still separates them, which is why --bg-2 is #0A0A0A and not the
+   #1A1D22 an ordinary dark theme would use. */
 body[data-theme=ink]{
-  --bg:#14161A; --bg-2:#1A1D22; --bg-3:#22262C;
-  --fg:#E8E6E1; --muted:#9C9791; --faint:#6E6A64;
-  --hair-c:#2E333A; --hair2-c:#242930; --wash:#1F2329;
+  --bg:#000000; --bg-2:#0A0A0A; --bg-3:#161616;
+  --fg:#F0EFEC; --muted:#94918B; --faint:#5E5C58;
+  --hair-c:#242424; --hair2-c:#161616; --wash:#101010;
 }
-body[data-theme=ink] .noise{mix-blend-mode:screen;opacity:.04}
+body[data-theme=ink] .noise{mix-blend-mode:screen;opacity:.05}
+body[data-theme=ink] .panel,body[data-theme=ink] .tile,
+body[data-theme=ink] .turn{border-color:var(--hair)}
+
+/* The green stock: the same black, cast green -- a terminal that grew a
+   dashboard. The ramp is tinted, but --brand is deliberately left alone: the
+   accent is a setting, and a theme that silently overrode it would make that
+   knob look broken. */
+body[data-theme=green]{
+  --bg:#020503; --bg-2:#061009; --bg-3:#0C1A11;
+  --fg:#D9F2E1; --muted:#7CA98B; --faint:#4B6B57;
+  --hair-c:#123020; --hair2-c:#0C2116; --wash:#08150D;
+}
+body[data-theme=green] .noise{mix-blend-mode:screen;opacity:.05}
+body[data-theme=green] .panel,body[data-theme=green] .tile,
+body[data-theme=green] .turn{border-color:var(--hair)}
 
 /* Interface scale. The design is set in px rather than rem, so scaling the
    root font size would move nothing -- `zoom` on the body is the honest
@@ -524,10 +544,14 @@ h1{font-family:var(--serif);font-weight:400;font-size:clamp(27px,4.2vw,42px);
 
 /* --- extract: choices on the left, the actual bytes on the right -------- */
 /* A preview next to the controls, because "what does CSV look like with full
-   text on" is a question you answer by looking, not by exporting twice. */
-.ex{display:grid;grid-template-columns:minmax(0,460px) minmax(0,1fr);
+   text on" is a question you answer by looking, not by exporting twice.
+   The class is `exp` and not `ex` because `td.ex` is the table's detail cell --
+   an unscoped `.ex` here reached into the table, made every cell a grid
+   container with a 100vh min-height, and stretched every row to ~704px. One
+   class name, two meanings; the wrapper gave way. */
+.exp{display:grid;grid-template-columns:minmax(0,460px) minmax(0,1fr);
   min-height:calc(100vh - 53px);align-items:start}
-.ex[hidden]{display:none}
+.exp[hidden]{display:none}
 .ex-l{padding:18px 24px 60px;min-width:0;border-right:1px solid var(--hair)}
 .ex-r{display:flex;flex-direction:column;min-width:0;height:calc(100vh - 53px);
   position:sticky;top:53px}
@@ -636,6 +660,11 @@ body[data-density=compact] .tile{padding:10px 11px}
 .cs-i .tick{width:11px;flex:0 0 auto;color:var(--brand);font-size:10px}
 .cs-i .t{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
+/* The sidebar's copy: the settings rows size themselves to their content, but
+   this one owns the whole column. */
+#folder{min-width:0}
+#folder .cs{display:block}
+#folder .cs-b{min-width:0}
 
 /* number + range, so a bounded knob can be dragged as well as typed */
 .numwrap{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;
@@ -672,24 +701,76 @@ body[data-density=compact] .tile{padding:10px 11px}
 .adv-row .pill{flex:0 0 auto}
 
 /* --- table view --------------------------------------------------------- */
-.wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;min-width:620px}
-th{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;
+/* The table is its own scroll region in both axes. That is what lets the head
+   stay put: `overflow-x:auto` alone already makes this a scroll container, so
+   the header was sticking to the top of a box that never scrolled and simply
+   scrolled away with the page. Bounding the height makes the sticky real, and
+   keeps the page itself from growing a second scrollbar. */
+.wrap{overflow:auto;max-height:calc(100vh - 232px);min-height:260px;
+  overscroll-behavior:contain}
+table{width:100%;border-collapse:separate;border-spacing:0;min-width:660px;
+  table-layout:fixed}
+/* Sticky only buys anything if the body scrolls under an opaque head; a
+   translucent one would show rows sliding through the column names. */
+th{position:sticky;top:0;z-index:2;
+  font-family:var(--mono);font-size:9.5px;text-transform:uppercase;
   letter-spacing:.14em;color:var(--faint);font-weight:400;text-align:left;
-  padding:9px 12px;border-bottom:1px solid var(--hair)}
+  padding:9px 12px;border-bottom:1px solid var(--hair);
+  background:var(--bg);white-space:nowrap}
 td{padding:calc(var(--trh) / 3) 12px;border-bottom:1px solid var(--hair-2);
   font-size:12.5px;vertical-align:top}
 td.t,td.n{font-family:var(--mono);font-size:11px;color:var(--faint);
   white-space:nowrap;font-variant-numeric:tabular-nums}
 td.n{text-align:right;color:var(--muted)}
 td.ex{color:var(--muted);overflow-wrap:anywhere}
+/* A row is a fixed height by default. Excerpts run to paragraphs, and a handful
+   of them made the table impossible to scan; --tclamp is the table's own knob,
+   deliberately not the flow view's --clamp, so clipping one does not silently
+   clip the other. The full text is one click away in the detail row, and
+   "Full text in rows" removes the clip entirely. */
+td.ex .clamp{display:-webkit-box;-webkit-line-clamp:var(--tclamp);
+  -webkit-box-orient:vertical;overflow:hidden}
+
+/* Column widths. With table-layout:fixed the widths are honoured on the first
+   row, so time and tokens stop jittering as the numbers change length. */
+table col.c-rail{width:3px}  table col.c-hint{width:26px}
+table col.c-t{width:96px}    table col.c-src{width:132px}
+table col.c-name{width:120px}
+table col.c-tok{width:78px}  table col.c-ex{width:auto}
+
+/* The source rail: the colour of the record, on the edge, where it survives
+   scrolling sideways past its own column. Painted as the cell's own background
+   rather than a child element, because a percentage height inside an auto-height
+   cell resolves to nothing. The colour is inline, so it also wins against the
+   hover, zebra and open backgrounds -- the rail never lies about the source. */
+td.rail,th.rail{padding:0;border-bottom:0}
+th.rail{background:var(--bg)}
+
 tr.ev{cursor:pointer}
-tr.ev:hover{background:var(--wash)}
-tr.detail td{background:var(--bg);border-bottom:1px solid var(--hair)}
+tr.ev:hover td{background:var(--wash)}
+/* Zebra is driven by position in the *visible* list, applied by restripe() --
+   not by nth-child. An open detail row is also a <tr>, so nth-child counted it
+   and the stripe flipped mid-table; and striping the filtered list is the
+   honest thing to do when a filter is on. */
+body[data-zebra=true] tr.ev.alt td{background:var(--wash)}
+tr.ev.open td,
+body[data-zebra=true] tr.ev.alt.open td{background:var(--bg-3)}
+td.det-hint{text-align:right;color:var(--faint);white-space:nowrap;
+  font-family:var(--mono);font-size:11px;padding-left:0}
+td.det-hint span{display:inline-block;opacity:.45;
+  transition:transform .12s ease}
+tr.ev:hover td.det-hint span{opacity:1}
+tr.ev.open td.det-hint span{opacity:1;color:var(--brand);
+  transform:rotate(90deg)}
+tr.detail td{background:var(--bg);border-bottom:1px solid var(--hair);
+  border-left:2px solid var(--brand);padding-top:10px;padding-bottom:12px}
 tr.detail pre{margin:0;font-family:var(--mono);font-size:11.5px;
   line-height:1.65;white-space:pre-wrap;word-break:break-word;color:var(--muted)}
-.srcwrap{display:inline-flex;align-items:center;gap:7px}
+.srcwrap{display:inline-flex;align-items:center;gap:7px;min-width:0}
 .srcwrap i{width:var(--dot);height:var(--dot);border-radius:999px;flex:0 0 auto}
+.srcwrap span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tablenote{font-family:var(--mono);font-size:10px;color:var(--faint);
+  padding:0 0 7px}
 .muted{color:var(--faint)}
 
 .foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;
@@ -761,6 +842,12 @@ const esc = s => String(s==null?'':s)
    would break the JSON tokenizer below. */
 const escTxt = s => String(s==null?'':s)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+/* Handlers for the custom selects that are not settings rows. Declared up here
+   rather than next to the widget because the sidebar registers into it during
+   boot, and a `const` further down the file is in the temporal dead zone until
+   its line runs -- which throws, and takes the whole page with it. */
+const CS_PICK = {};
 
 function human(n){
   n = Number(n)||0;
@@ -915,22 +1002,36 @@ function renderHead(){
 }
 
 /* Folder slugs are long and there are usually more sessions than folders, so
-   the list is built from the sessions actually on disk, with counts. */
-function renderFolders(){
-  const sel = $('#folder'), keep = sel.value;
+   the list is built from the sessions actually on disk, with counts. The label
+   carries the count; the value stays the bare slug, so filtering never has to
+   parse a display string. */
+function folderOpts(){
   const n = {};
   (STATE.sessions||[]).forEach(s=>{ n[s.folder] = (n[s.folder]||0)+1; });
   const names = Object.keys(n).sort((a,b)=>
     (a.indexOf('-')===0?1:0)-(b.indexOf('-')===0?1:0) || a.localeCompare(b));
-  sel.innerHTML = '<option value="">All folders · '+((STATE.sessions||[]).length)+
-    ' sessions</option>' + names.map(f =>
-    '<option value="'+esc(f)+'">'+esc(f)+' · '+n[f]+'</option>').join('');
-  if(names.indexOf(keep) >= 0) sel.value = keep;
+  return [{v:'', t:'All folders · '+((STATE.sessions||[]).length)+' sessions'}]
+    .concat(names.map(f => ({v: f, t: f+' · '+n[f]})));
 }
+
+/* The selected folder is state, not a DOM read: the widget is rebuilt whenever
+   the session list changes, and a <select> could hold its own value where this
+   container cannot. */
+let FOLDER = '';
+
+function renderFolders(){
+  const host = $('#folder');
+  if(!host) return;
+  const opts = folderOpts();
+  if(!opts.some(o => o.v === FOLDER)) FOLDER = '';   /* that folder is gone */
+  host.innerHTML = csHTML('folder', FOLDER, opts);
+}
+
+CS_PICK.folder = v => { FOLDER = v; renderFolders(); renderSessions(); };
 
 function renderSessions(){
   const q = ($('#search').value||'').toLowerCase();
-  const folder = $('#folder').value;
+  const folder = FOLDER;
   let list = (STATE.sessions||[]).filter(s =>
     (!folder || s.folder === folder) &&
     (!q || s.id.toLowerCase().includes(q) ||
@@ -1596,6 +1697,10 @@ function tableCols(){
   return cols;
 }
 let TCOLS = [];
+/* The rail and the expand chevron are structure, not data -- they are always
+   there and never appear in tableCols(), so the real column count is the
+   configured ones plus two. Every colspan in the file goes through here. */
+function TCOLN(){ return (TCOLS.length || 4) + 2; }
 
 function tableCell(c, e){
   if(c.k === 't') return '<td class="t">'+esc(e.t)+'</td>';
@@ -1605,8 +1710,11 @@ function tableCell(c, e){
   if(c.k === 'tok') return '<td class="n">'+human(e.tokens)+'</td>';
   /* Full text is off by default: the whole point of the table is one line per
      record, and the full payload is one click away in the detail row. */
-  const body = (CFG.table_full === true) ? (e.text || e.excerpt) : e.excerpt;
-  return '<td class="ex">'+(esc(body)||'<span class="muted">—</span>')+'</td>';
+  const full = CFG.table_full === true;
+  const body = full ? (e.text || e.excerpt) : e.excerpt;
+  if(!body) return '<td class="ex"><span class="muted">—</span></td>';
+  return '<td class="ex">'+(full ? esc(body)
+    : '<div class="clamp">'+esc(body)+'</div>')+'</td>';
 }
 
 function renderTable(append, from){
@@ -1614,9 +1722,14 @@ function renderTable(append, from){
   const cap = Math.max(20, Number(CFG.table_rows) || 400);
   if(!append){
     TCOLS = tableCols();
+    const cols = $('#tcols');
+    if(cols) cols.innerHTML = '<col class="c-rail">'+
+      TCOLS.map(c => '<col class="c-'+esc(c.k)+'">').join('')+
+      '<col class="c-hint">';
     $('#tablewrap').querySelector('thead').innerHTML =
-      '<tr>'+TCOLS.map(c => '<th'+(c.right ? ' style="text-align:right"' : '')+'>'+
-        esc(c.label)+'</th>').join('')+'</tr>';
+      '<tr><th class="rail"></th>'+
+      TCOLS.map(c => '<th'+(c.right ? ' style="text-align:right"' : '')+'>'+
+        esc(c.label)+'</th>').join('')+'<th></th></tr>';
     /* One row per record, and a long session has six figures of them. The cap
        is spent on the newest, which is the end you are reading. */
     const start = Math.max(0, EVENTS.length - cap);
@@ -1630,21 +1743,23 @@ function renderTable(append, from){
   const fresh = append ? EVENTS.slice(SHOWN) : EVENTS.slice(base);
   if(!fresh.length){
     if(!append) tbody.innerHTML =
-      '<tr><td colspan="'+TCOLS.length+'"><div class="empty">No events.</div></td></tr>';
+      '<tr><td colspan="'+TCOLN()+'"><div class="empty">No events.</div></td></tr>';
     SHOWN = EVENTS.length; return;
   }
   tbody.insertAdjacentHTML('beforeend', fresh.map((e,k)=>{
     const row = '<tr class="ev" data-i="'+(base+k)+'" data-src="'+esc(e.source)+'">'+
-      TCOLS.map(c=>tableCell(c,e)).join('')+'</tr>';
+      '<td class="rail" style="background:'+hueColor(e.source)+'"></td>'+
+      TCOLS.map(c=>tableCell(c,e)).join('')+
+      '<td class="det-hint" aria-hidden="true"><span>›</span></td></tr>';
     /* The raw record, for when the columns are not the whole story. Off by
        default: it doubles the row count and makes the table unreadable. */
     return row + (CFG.debug_json
-      ? '<tr class="detail"><td colspan="'+TCOLS.length+'">'+
+      ? '<tr class="detail"><td colspan="'+TCOLN()+'">'+
         jsonHTML(JSON.stringify(e, null, 2))+'</td></tr>' : '');
   }).join(''));
   SHOWN = EVENTS.length;
   if(append && flashOn()) $$('#rows tr.ev').slice(-fresh.length).forEach(tr=>tr.classList.add('flash'));
-  if(activeOpts()) applyFilter();
+  if(activeOpts()) applyFilter(); else restripe();
 }
 
 /* --------------------------------------------------------------- filtering */
@@ -1723,6 +1838,18 @@ function syncFlow(){
   }
 }
 
+/* Zebra is striping by position in the visible list, recomputed after any
+   render or filter, rather than `nth-child` -- see the rule in the stylesheet
+   for why nth-child gets this wrong. */
+function restripe(){
+  if(VIEW !== 'table') return;
+  let n = 0;
+  $$('#rows tr.ev').forEach(r=>{
+    if(r.style.display === 'none') r.classList.remove('alt');
+    else r.classList.toggle('alt', (n++ % 2) === 1);
+  });
+}
+
 function applyFilter(){
   /* Counted over every event, not over the rendered rows: the flow renders
      only the tail of a long session, so counting the DOM would report "8 of
@@ -1738,6 +1865,7 @@ function applyFilter(){
       hidden = !matches(EVENTS[i], i);
       r.style.display = hidden ? 'none' : '';
     });
+    restripe();
   } else {
     $$('#flow .step').forEach(el=>{
       const i = Number(el.dataset.i);
@@ -1796,7 +1924,7 @@ function syncViewChrome(){
   $$('[data-view]').forEach(b=>b.setAttribute('aria-pressed',
     String(b.dataset.view===VIEW)));
   $('#flow').hidden = VIEW!=='flow';
-  $('#tablewrap').hidden = VIEW!=='table';
+  $('#tableview').hidden = VIEW!=='table';
   $('#wfwrap').hidden = VIEW!=='timeline';
   $('#viewhint').textContent = VIEW==='timeline'
     ? 'one bar per measured span · newest turn first'
@@ -1908,14 +2036,17 @@ document.addEventListener('click', ev => {
   const tr = ev.target.closest('tr.ev');
   if(tr){
     const next = tr.nextElementSibling;
-    if(next && next.classList.contains('detail')){ next.remove(); return; }
+    if(next && next.classList.contains('detail')){
+      next.remove(); tr.classList.remove('open'); return;
+    }
     const e = EVENTS[Number(tr.dataset.i)]||{};
     const row = document.createElement('tr');
     row.className = 'detail';
-    row.innerHTML = '<td colspan="'+(TCOLS.length || 4)+'">'+
+    row.innerHTML = '<td colspan="'+TCOLN()+'">'+
       (e.source==='tool call' ? jsonHTML(e.text||'') : '<pre>'+escTxt(e.text||e.excerpt||'')+'</pre>')+
       '</td>';
     tr.after(row);
+    tr.classList.add('open');
     return;
   }
 
@@ -1924,7 +2055,6 @@ document.addEventListener('click', ev => {
 });
 
 $('#search').addEventListener('input', renderSessions);
-$('#folder').addEventListener('change', renderSessions);
 
 /* Escape is handled once, in the settings block, where it also knows about the
    custom dropdowns -- two handlers for one key is how Escape ends up closing
@@ -2376,19 +2506,42 @@ function setMatch(s){
 
 /* --- controls ------------------------------------------------------------ */
 
-function csHTML(k, val, opts){
-  return '<div class="cs" data-cs="'+k+'">'+
-    '<button class="cs-b" type="button" data-cs-b="'+k+'" aria-haspopup="listbox"'+
-      ' aria-expanded="false"><span class="v">'+esc(val)+'</span>'+
+/* The custom select. One widget for every choice on the page. The native
+   <select> opens an OS-drawn menu that cannot be themed, cannot be styled to
+   match anything else here, and on some platforms blocks the rest of the page
+   while it is open -- so there is exactly one dropdown in this file and this is
+   it.
+
+   Options are plain strings, or {v,t} when the label you read differs from the
+   value you store: the folder filter reads "scripts · 12" and stores "scripts".
+   `cls` adds a class to the wrapper, which is how the sidebar's copy gets its
+   own width. */
+function csOpts(opts){
+  return (opts || []).map(o => typeof o === 'string'
+    ? {v: o, t: o}
+    : {v: o.v, t: o.t == null ? o.v : o.t});
+}
+
+function csHTML(k, val, opts, cls){
+  const list = csOpts(opts);
+  const cur = list.filter(o => o.v === val)[0];
+  return '<div class="cs'+(cls ? ' '+esc(cls) : '')+'" data-cs="'+esc(k)+'">'+
+    '<button class="cs-b" type="button" data-cs-b="'+esc(k)+'" aria-haspopup="listbox"'+
+      ' aria-expanded="false"><span class="v">'+esc(cur ? cur.t : val)+'</span>'+
       '<span class="caret">▾</span></button>'+
-    '<div class="cs-p" data-cs-p="'+k+'" role="listbox" hidden>'+
-      opts.map(o => '<button class="cs-i" type="button" role="option"'+
-        ' data-cs-pick="'+k+'" data-val="'+esc(o)+'"'+
-        ' aria-selected="'+(o === val)+'">'+
-        '<span class="tick">'+(o === val ? '✓' : '')+'</span>'+
-        '<span class="t">'+esc(o)+'</span></button>').join('')+
+    '<div class="cs-p" data-cs-p="'+esc(k)+'" role="listbox" hidden>'+
+      list.map(o => '<button class="cs-i" type="button" role="option"'+
+        ' data-cs-pick="'+esc(k)+'" data-val="'+esc(o.v)+'"'+
+        ' aria-selected="'+(o.v === val)+'">'+
+        '<span class="tick">'+(o.v === val ? '✓' : '')+'</span>'+
+        '<span class="t">'+esc(o.t)+'</span></button>').join('')+
     '</div></div>';
 }
+
+/* A .cs outside the settings form has no config key behind it, so it registers
+   its own handler in CS_PICK (declared at the top of the file). A pick checks
+   that registry first and only then falls back to setCfg(), which is what every
+   settings row uses. */
 
 function ledHTML(k){
   const items = CFG[k] || [];
@@ -2580,6 +2733,28 @@ function openCS(p){
   if(b) b.setAttribute('aria-expanded', String(!p.hidden));
 }
 
+/* Bound to the document, not to the settings form: the folder dropdown lives in
+   the sidebar, and the widget is the same widget. This is the only place that
+   opens, picks from, or dismisses a .cs. */
+document.addEventListener('click', ev => {
+  const csb = ev.target.closest('[data-cs-b]');
+  if(csb){
+    const p = $('[data-cs-p="'+csb.dataset.csB+'"]');
+    if(p) openCS(p);
+    return;
+  }
+  const pick = ev.target.closest('[data-cs-pick]');
+  if(pick){
+    const k = pick.dataset.csPick, v = pick.dataset.val;
+    const fn = CS_PICK[k];
+    if(fn) fn(v);
+    else if(cfgSpec(k)) setCfg(k, v, {immediate: true});
+    closeCS();
+    return;
+  }
+  if(!ev.target.closest('.cs')) closeCS();
+});
+
 function addChip(){
   const l = ($('#chipLabel') && $('#chipLabel').value || '').trim();
   const p = ($('#chipPrefix') && $('#chipPrefix').value || '').trim();
@@ -2724,16 +2899,6 @@ function onCfgClick(ev){
     setCfg(sw.dataset.set, on, {immediate: true});
     return;
   }
-  const csb = ev.target.closest('[data-cs-b]');
-  if(csb){ openCS($('[data-cs-p="'+csb.dataset.csB+'"]')); return; }
-  const pick = ev.target.closest('[data-cs-pick]');
-  if(pick){
-    setCfg(pick.dataset.csPick, pick.dataset.val, {immediate: true});
-    closeCS();
-    return;
-  }
-  if(!ev.target.closest('.cs')) closeCS();
-
   const undo = ev.target.closest('[data-set-undo]');
   if(undo){ setCfg(undo.dataset.setUndo, CFG_DEF[undo.dataset.setUndo], {immediate: true}); return; }
   const del = ev.target.closest('[data-led-del]');
@@ -2774,6 +2939,27 @@ function keyList(k){
   return String(C(k) || '').split(',').map(x => x.trim()).filter(Boolean);
 }
 document.addEventListener('keydown', ev => {
+  /* An open dropdown is the innermost thing on screen, so it is the first thing
+     Escape closes -- closing the whole settings page out from under an open
+     menu would be the wrong undo. */
+  const panel = $$('[data-cs-p]').filter(p => !p.hidden)[0];
+  if(panel && (ev.key === 'Escape' || ev.key === 'ArrowDown' || ev.key === 'ArrowUp')){
+    ev.preventDefault();
+    const items = [...panel.querySelectorAll('.cs-i')];
+    if(ev.key === 'Escape'){
+      const b = $('[data-cs-b="'+panel.dataset.csP+'"]');
+      closeCS();
+      if(b) b.focus();
+      return;
+    }
+    if(!items.length) return;
+    const step = ev.key === 'ArrowDown' ? 1 : -1;
+    const at = items.indexOf(document.activeElement);
+    const to = at < 0 ? (step > 0 ? 0 : items.length - 1)
+                      : (at + step + items.length) % items.length;
+    items[to].focus();
+    return;
+  }
   if(ev.key === 'Escape'){
     if($('#settings') && !$('#settings').hidden){ openSettings(false); return; }
     if($('#export') && !$('#export').hidden){ openExport(false); return; }
@@ -3012,7 +3198,7 @@ PAGE = r"""<!doctype html>
      looking at the result, so the result is on screen next to the choices. The
      controls are the Export group of the spec, rendered with the same widgets,
      so there is one definition of what an export option is. -->
-<main class="ex" id="export" hidden aria-label="Extract">
+<main class="exp" id="export" hidden aria-label="Extract">
   <div class="ex-l">
     <div class="set-head">
       <h2>Extract</h2>
@@ -3052,7 +3238,7 @@ PAGE = r"""<!doctype html>
       <span class="label" id="records"></span>
     </div>
     <input class="input" id="search" placeholder="Find by id, folder or project…" autocomplete="off">
-    <select class="input" id="folder" aria-label="Filter by folder"></select>
+    <div id="folder"></div>
     <ul class="sess" id="sess"></ul>
     <p class="label scount" id="scount"></p>
   </aside>
@@ -3124,11 +3310,16 @@ PAGE = r"""<!doctype html>
         <div id="wf"></div>
       </div>
       <div id="flow"></div>
-      <div class="wrap" id="tablewrap" hidden>
+      <div id="tableview" hidden>
+      <div id="tablenote"></div>
+      <div class="wrap" id="tablewrap">
         <table>
-          <thead><tr><th>Time</th><th>Source</th><th style="text-align:right">Tokens</th><th>Detail</th></tr></thead>
+          <colgroup id="tcols"></colgroup>
+          <thead><tr><th class="rail"></th><th>Time</th><th>Source</th>
+            <th style="text-align:right">Tokens</th><th>Detail</th><th></th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
+      </div>
       </div>
     </div>
 
