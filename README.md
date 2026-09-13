@@ -41,6 +41,9 @@ points `statusLine` at it in `settings.json`. It backs that file up first and
 touches only the one key —
 [exactly what it writes](statusline/README.md#what-it-does-to-your-settings).
 
+It is a copy, not a link, so re-run `install.py` after a `git pull`.
+`--uninstall` removes the `statusLine` key but leaves the copy in place.
+
 ```sh
 python3 install.py --dry-run          # show what would change, write nothing
 python3 install.py --uninstall        # remove the statusLine entry again
@@ -95,7 +98,7 @@ And the same bar, on its own:
 | `↓ out 1.04M` | cumulative output tokens this session |
 | `Σ 3.47b` | all-time tokens across every session, from Claude Code's own `stats-cache.json` |
 | `1717 msg` | your prompts plus the model's replies, this session |
-| `$120.75` | derived session cost — only shown when you supply rates |
+| `$120.75` | session cost, derived — see below |
 
 Fields drop out rather than showing a placeholder when they are not available:
 with no transcript yet you get the bar, `0%`, and `no transcript yet`.
@@ -111,10 +114,24 @@ Set these as environment variables. Under Claude Code the reliable place is the
 | `CLAUDE_BAR_WIDTH` | `12` | width of the progress bar in cells |
 | `CLAUDE_SHOW_PROJECT` | `1` | `0` hides the project name |
 | `CLAUDE_EXACT` | `0` | `1` prints `3,431,260` instead of `3.43M` |
-| `CLAUDE_COST_IN` / `_OUT` / `_CACHE_READ` / `_CACHE_WRITE` | — | USD per 1M tokens, per kind. Cost appears only once you supply at least one rate — guessing a price and printing it in dollars would be worse than printing nothing |
+| `CLAUDE_COST_IN` / `_OUT` / `_CACHE_READ` / `_CACHE_WRITE` | — | USD per 1M tokens, per kind. See **where the cost comes from**, below |
 | `CLAUDE_QUOTA_PER_USD` | `500000` | quota units per dollar, for gateways that report cost that way |
-| `CLAUDE_STATUSLINE_CACHE` | `~/.cache/claude-statusline` | where the scan cache lives |
+| `CLAUDE_STATUSLINE_CACHE` | `~/.cache/claude-statusline` | where the scan cache, and the cached gateway pricing, live |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude Code's directory, if you have moved it |
+
+**Where the cost comes from.** Three sources, in order of preference:
+
+1. **Claude Code's own figure**, if the gateway reports a non-zero one. Many
+   report zero.
+2. **Your rates**, if any `CLAUDE_COST_*` is set.
+3. **The gateway's published model ratios**, fetched once from
+   `<ANTHROPIC_BASE_URL>/api/pricing` and cached on disk for a day. This sends
+   nothing about you or your session — it is a plain `GET` for a price list.
+
+If none of the three yields a number, the field is omitted rather than guessed.
+The gateway's ratios are the case to watch: they are published rates for a
+model, not what you were billed, which is why the dashboard labels the same
+figure *estimated*.
 
 Costs, every field, and troubleshooting:
 **[statusline/README.md](statusline/README.md)**.
@@ -161,9 +178,9 @@ click one for the full record.
   result it produced.
 - **Table** — every event, in order, filterable and expandable.
 
-Plus a **Settings** page (~140 knobs, all of which change real behaviour) at
-`/settings`, and an **Extract** page at `/extract` that writes the current view
-to JSON, Markdown or CSV. Both are pages in their own right — their own address
+Plus a **Settings** page (140 knobs in sixteen groups, every one of which
+changes real behaviour) at `/settings`, and an **Extract** page at `/extract`
+that writes the current view to JSON, Markdown or CSV. Both are pages in their own right — their own address
 and their own title, the session's view tabs and source filter come off the nav
 while one is open, and Back returns you to the session rather than out of the
 dashboard. The brand in the corner links back.
@@ -207,11 +224,13 @@ doc's 10%, 0 removing every line.
 A source colour is a saved setting, and its default was picked against paper's
 light ground: a bar that reads at one lightness there sinks into a near-black
 one. So the page never draws a source colour raw — it draws that colour at the
-lightness the current stock asks for, same hue and same chroma, lifted 1.38×,
-which is the ratio `DESIGN.md` itself uses between a stock's accent and its
-dark-stock version. A bar, a dot, a table rail and a label that speaks in that
-colour are all one value, so a colour you pick in Settings moves all of them.
-The three light stocks draw the settings' exact values.
+lightness the current stock asks for, same hue, lightness lifted 1.38× and
+chroma 1.12×. The 1.38 is the ratio `DESIGN.md` itself uses between a stock's
+accent and its dark-stock version; the chroma comes up a little with the
+lightness, because raising lightness alone washes a colour towards grey. A bar,
+a dot, a table rail and a label that speaks in that colour are all one value, so
+a colour you pick in Settings moves all of them. The three light stocks draw the
+settings' exact values.
 
 Scrollbars come from the palette too: thin, the stock's accent at 45%, on a
 transparent track that lets the panel show through. It is the standard
@@ -236,7 +255,7 @@ migration to record. **It never writes to `~/.claude/settings.json`.**
 ```sh
 python3 trajectory.py --text
 python3 trajectory.py --text --limit 100 --source reasoning
-python3 trajectory.py --all            # every session on disk
+python3 trajectory.py --all            # the 40 most recent sessions
 python3 trajectory.py de2b7ace         # one session, by id or id-prefix
 ```
 
@@ -274,10 +293,13 @@ stores things, and troubleshooting:
 Claude Code's transcript writes each assistant message about 2.5× as streaming
 snapshots, each with a byte-identical copy of the same `usage` object. Summing
 every record inflates your totals by that factor — which is where a lot of "I
-used 3 million tokens?" comes from. Both tools deduplicate by `message.id` (and
-user records by `uuid`), so the counts are distinct messages, not transcript
-writes. The details, including the byte-offset cache that makes re-counting
-cheap, are in the docstring at the top of `statusline/statusline-command.py`.
+used 3 million tokens?" comes from.
+
+The status line deduplicates by `message.id`, and user records by `uuid`. The
+dashboard deduplicates by `message.id` too, but not by user `uuid` — it takes
+each user record as one event. The details, including the byte-offset cache that
+makes re-counting cheap, are in the docstring at the top of
+`statusline/statusline-command.py`.
 
 Page-level sizes are a different thing: those are characters, not tokens, and
 are estimated so that sources are comparable with each other. The session's real

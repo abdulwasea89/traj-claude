@@ -288,14 +288,16 @@ footer .sp{margin-left:auto}
       <h4>The two tools</h4>
       <a href="#statusline">1 · The status bar</a>
       <a href="#dashboard">2 · The dashboard</a>
-      <a href="#views">The five views</a>
+      <a href="#views">Three views, and two pages</a>
       <h4>Reference</h4>
       <a href="#numbers">Why the numbers are right</a>
       <a href="#palettes">Palettes</a>
       <a href="#config">The config file</a>
       <a href="#env">Environment variables</a>
+      <a href="#cost">Where the cost comes from</a>
       <a href="#cli">Command line</a>
       <a href="#advanced">Advanced</a>
+      <a href="#stores">Where it stores things</a>
       <a href="#trouble">Troubleshooting</a>
       <h4>Project</h4>
       <a href="#collaboration">Collaborating</a>
@@ -349,12 +351,13 @@ footer .sp{margin-left:auto}
     </div>
 
     <p>
-      Neither one sends your data anywhere. There is no telemetry, no account,
-      no network call, and the dashboard binds to loopback only. The one thing
-      that reaches outside the checkout is the status bar's installer, which
-      sets a single key in <code>settings.json</code> — everything else is
-      written next to the tools themselves. <a href="#install">Install</a> has
-      the full list.
+      Neither one sends your data anywhere. There is no telemetry and no
+      account, and the dashboard binds to loopback only. Two things do leave
+      the checkout: the status bar's installer, which sets a single key in
+      <code>settings.json</code>, and one plain <code>GET</code> the status bar
+      makes for the gateway's price list — nothing about you or your session is
+      in it. <a href="#install">Install</a> and <a href="#cost">the cost
+      figure</a> have the details.
     </p>
 
     <div class="note warn">
@@ -394,6 +397,23 @@ python3 install.py --python /usr/bin/python3.12</code></pre>
       It backs <code>settings.json</code> up first and writes exactly one key —
       <a href="#installer">what the installer does to your settings</a>, below.
     </p>
+    <p>
+      That is a <strong>copy</strong>, not a link, and the one sharp edge in an
+      otherwise uneventful install: after a <code>git pull</code>, re-run
+      <code>install.py</code> or the bar keeps running the old script. In the
+      other direction, <code>--uninstall</code> removes the
+      <code>statusLine</code> key but deliberately leaves
+      <code>~/.claude/statusline-command.py</code> where it is — the installer
+      prints the path so you can delete it yourself.
+    </p>
+    <div class="note">
+      <strong>The dashboard borrows the bar.</strong> The status strip across
+      the dashboard's header is drawn by importing the installed
+      <code>statusline-command.py</code> — the same code, so the same numbers.
+      It looks in <code>~/.claude/</code> first, then beside the checkout at
+      <code>statusline/statusline-command.py</code>. Find neither and the
+      dashboard still runs; the strip is simply absent, with no error.
+    </div>
 
     <h3>Run the dashboard</h3>
     <p>
@@ -488,8 +508,8 @@ python3 install.py --python /usr/bin/python3.12</code></pre>
     </p>
 
 <pre><code>cd dashboard
-python3 trajectory.py            # start it and open the browser
-python3 trajectory.py serve      # the same server, without opening a browser
+python3 trajectory.py            # start it in the background, print the address
+python3 trajectory.py serve      # the same server in the foreground
 python3 trajectory.py --text     # a report in the terminal instead</code></pre>
 
     <figure>
@@ -546,7 +566,7 @@ python3 trajectory.py --text     # a report in the terminal instead</code></pre>
       </figcaption>
     </figure>
 
-    <h2 id="views"><span class="n">§</span>The five views</h2>
+    <h2 id="views"><span class="n">§</span>Three views, and two pages</h2>
     <p>
       The tab strip in the middle of the nav switches between the session
       views; <strong>Extract</strong> and <strong>Settings</strong> are pages in
@@ -563,7 +583,8 @@ python3 trajectory.py --text     # a report in the terminal instead</code></pre>
     <h3>Flow</h3>
     <p>
       The session as nested steps, with each tool call paired to the result it
-      produced. Subagent work nests under the call that spawned it.
+      produced — the call is the parent, its result is the child, so a pair
+      reads as one step that finished.
     </p>
     <figure>
       <img src="img/flow.png" width="1600" height="918"
@@ -582,9 +603,11 @@ python3 trajectory.py --text     # a report in the terminal instead</code></pre>
 
     <h3>Settings</h3>
     <p>
-      Around 140 knobs across appearance, source colours, timeline, flow,
-      table, filters, accounting and the server. Every one of them changes real
-      behaviour — there are no cosmetic toggles.
+      140 knobs in sixteen groups — appearance, source colours, timeline, flow,
+      table, filters, accounting, server, live, status strip, sessions, nav,
+      inspect, keyboard, export and advanced. Every one of them changes real
+      behaviour; there are no cosmetic toggles. A knob that does not move
+      anything is a bug, not a placeholder.
     </p>
     <div class="duo">
       <figure>
@@ -620,13 +643,15 @@ python3 trajectory.py --text     # a report in the terminal instead</code></pre>
       lot of "I used 3 million tokens?" comes from.
     </p>
     <p>
-      Both tools deduplicate by <code>message.id</code> (user records by
-      <code>uuid</code>), so the numbers are exact counts of <em>distinct
-      messages</em>, not of transcript writes. Re-counting a long transcript on
-      every render would be slow, so the status line keeps a byte-offset cache
-      per session and only reads what was appended since last time. Streaming
-      duplicates are consecutive, so a bounded window of recent ids catches
-      them without persisting every id a session has ever emitted.
+      The status line deduplicates by <code>message.id</code>, and user records
+      by <code>uuid</code>, so its numbers are exact counts of <em>distinct
+      messages</em> rather than of transcript writes. The dashboard deduplicates
+      by <code>message.id</code> as well, but takes each user record as one
+      event — it does not collapse user <code>uuid</code>s. Re-counting a long
+      transcript on every render would be slow, so the status line keeps a
+      byte-offset cache per session and only reads what was appended since last
+      time. Streaming duplicates are consecutive, so a bounded window of recent
+      ids catches them without persisting every id a session has ever emitted.
     </p>
     <p>
       Page-level sizes are a different matter: characters, not tokens. Those
@@ -717,12 +742,14 @@ python3 trajectory.py --text     # a report in the terminal instead</code></pre>
     <p>
       A source colour is a saved setting, and its default was picked against a
       light ground. So the page never draws a source colour raw: it draws that
-      colour at the lightness the current stock asks for — same hue, same
-      chroma, lifted 1.38×, which is the ratio the design system itself uses
-      between a stock's accent and its dark-stock version. A bar, a dot, a
-      table rail and a label that speaks in that colour are all one value, so a
-      colour you pick in Settings moves all of them. The three light stocks
-      draw your settings' exact values.
+      colour at the lightness the current stock asks for — same hue, lightness
+      lifted 1.38× and chroma 1.12×. The 1.38 is the ratio the design system
+      itself uses between a stock's accent and its dark-stock version; the
+      chroma comes up a little with the lightness, because raising lightness
+      alone washes a colour towards grey. A bar, a dot, a table rail and a label
+      that speaks in that colour are all one value, so a colour you pick in
+      Settings moves all of them. The three light stocks draw your settings'
+      exact values.
     </p>
 
     <h3>Hairlines, and the scrollbars</h3>
@@ -795,23 +822,70 @@ python3 trajectory.py --text     # a report in the terminal instead</code></pre>
       and printing it in dollars would be worse than printing nothing.
     </p>
 
+    <h3 id="cost">Where the cost figure comes from</h3>
+    <p>
+      Three sources, tried in this order. The first that yields a number wins.
+    </p>
+    <table>
+      <thead><tr><th>#</th><th>Source</th><th>When it is used</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Claude Code's own <code>total_cost_usd</code>, passed in on stdin</td><td>Whenever it is non-zero. <strong>Many gateways report zero</strong>, so this often does not fire. When it does, the figure is also written into the session cache so the dashboard can show the same number.</td></tr>
+        <tr><td>2</td><td>Your <code>CLAUDE_COST_*</code> rates</td><td>When any one of the four is set, and source 1 was zero or missing. <code>tin</code>, <code>tout</code>, cache reads and cache writes are each billed at their own rate per 1M tokens.</td></tr>
+        <tr><td>3</td><td>The gateway's published model ratios</td><td>When no rate is set. Fetched from <code>&lt;ANTHROPIC_BASE_URL&gt;/api/pricing</code> and cached for a day.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      If none of the three produces a number the field is omitted rather than
+      shown as <code>$0.00</code>.
+    </p>
+    <p>
+      <strong>The gateway path sends nothing about you.</strong> It is a plain
+      <code>GET</code> for a public price list, with the user agent
+      <code>claude-statusline</code>. No token, no session id, no transcript
+      content. It is still a network call, so it is the one thing here that
+      does not work offline; with no network the fetch fails, the cache is used
+      if it has one, and otherwise the field drops out.
+    </p>
+    <div class="note">
+      <strong>Source 3 is an estimate, and a slightly conservative one.</strong>
+      It follows the <em>new-api</em> convention, where
+      <code>quota = tokens × model_ratio ÷ CLAUDE_QUOTA_PER_USD × group_ratio</code>.
+      Note that the gateway publishes no separate cache rate, so cache reads
+      and writes are billed there at the <em>input</em> ratio — normally the
+      most expensive way to count them, since a cache read really costs a
+      fraction of fresh input. On a session with a large cache hit rate this
+      makes the figure read high. That is why the dashboard labels the same
+      number <em>estimated</em> while calling the API's billed usage exact.
+      Sources 1 and 2 do not have this problem: 1 is what you were actually
+      charged, and 2 is whatever rates you told it.
+    </div>
+    <p>
+      <code>CLAUDE_QUOTA_PER_USD</code> is the bridge between the two worlds:
+      the gateway counts in abstract quota units, you think in dollars, and the
+      default <code>500000</code> is the ratio most new-api deployments ship
+      with. If your gateway uses a different one, cost is the only field that
+      moves — every token count is unaffected.
+    </p>
+
     <h2 id="cli"><span class="n">§</span>Command line</h2>
     <p>
-      <code>trajectory.py</code> with no arguments starts the dashboard and
-      opens it. Everything else is a flag on the same script.
+      <code>trajectory.py</code> with no arguments starts the dashboard in the
+      background and prints its address. Everything else is a flag on the same
+      script. Neither form opens a browser unless you turn on <strong>Open a
+      browser on launch</strong> in Settings → Server.
     </p>
     <table>
       <thead><tr><th>Command</th><th>What it does</th></tr></thead>
       <tbody>
-        <tr><td><code>trajectory.py</code></td><td>Start the server and open the browser. This is the default.</td></tr>
-        <tr><td><code>trajectory.py serve</code></td><td>Start the server without opening a browser.</td></tr>
+        <tr><td><code>trajectory.py</code></td><td>Start the server in the background and print the address, leaving your shell free. This is the default.</td></tr>
+        <tr><td><code>trajectory.py serve</code></td><td>The same server in the foreground, so <code>Ctrl-C</code> stops it.</td></tr>
         <tr><td><code>trajectory.py --port 9000</code></td><td>Serve on a different port.</td></tr>
         <tr><td><code>trajectory.py --text</code></td><td>The terminal report instead of the page: a source summary, then the events in order.</td></tr>
         <tr><td><code>trajectory.py de2b7ace</code></td><td>A specific session, by id or id-prefix.</td></tr>
-        <tr><td><code>trajectory.py --all</code></td><td>Every session transcript on disk.</td></tr>
+        <tr><td><code>trajectory.py --all</code></td><td>The 40 most recent sessions.</td></tr>
         <tr><td><code>trajectory.py --limit 100</code></td><td>More events in the text report (default 30).</td></tr>
         <tr><td><code>trajectory.py --source reasoning</code></td><td>Only one source, in the text report.</td></tr>
-        <tr><td><code>trajectory.py --html --out r.html</code></td><td>Write a static snapshot — one file, no server, no live updates.</td></tr>
+        <tr><td><code>trajectory.py --html --out r.html</code></td><td>Write a static snapshot — one file, no server, no live updates. Without <code>--out</code> it goes to <code>~/.claude/trajectory/&lt;session&gt;.html</code>.</td></tr>
       </tbody>
     </table>
 
@@ -850,19 +924,26 @@ python3 trajectory.py --text     # a report in the terminal instead</code></pre>
     <table>
       <thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead>
       <tbody>
-        <tr><td>Port</td><td><code>8788</code></td><td>What <code>serve</code> binds on.</td></tr>
-        <tr><td>Bind address</td><td><code>127.0.0.1</code></td><td>Setting this to <code>0.0.0.0</code> exposes the session log — your prompts, your code, your file paths — to everyone on your local network. Loopback is the default for a reason.</td></tr>
-        <tr><td>Open a browser on launch</td><td>off</td><td>Whether <code>serve</code> opens your default browser for you.</td></tr>
-        <tr><td>Log requests</td><td>off</td><td>Print every request to <code>serve.log</code>.</td></tr>
+        <tr><td>Port</td><td><code>8788</code></td><td>What <code>serve</code> binds on. Restart-scoped.</td></tr>
+        <tr><td>Bind address</td><td><code>127.0.0.1</code></td><td>The only other option is <code>0.0.0.0</code>, which exposes the session log — your prompts, your code, your file paths — to everyone on your local network. Loopback is the default for a reason, and the server prints a warning at startup whenever it is not. Restart-scoped.</td></tr>
+        <tr><td>Open a browser on launch</td><td>off</td><td>Whether the dashboard opens your default browser for you, in either mode. Restart-scoped.</td></tr>
+        <tr><td>Log requests</td><td>off</td><td>Print every request. From a background server that lands in <code>serve.log</code>; from <code>serve</code> it is the terminal. Off by default because a live page polls. Restart-scoped.</td></tr>
       </tbody>
     </table>
 
-    <h3>Where it stores things</h3>
+    <h3 id="stores">Where it stores things</h3>
+    <p>
+      Everything either tool writes, in full. Nothing else on disk is touched.
+    </p>
     <table>
       <thead><tr><th>Path</th><th>What</th></tr></thead>
       <tbody>
-        <tr><td><code>~/.cache/claude-statusline</code></td><td>The status line's byte-offset scan cache. Delete it to force a full rescan.</td></tr>
-        <tr><td><code>dashboard/trajectory.config.json</code></td><td>The dashboard's settings, next to the script. Delete it to go back to defaults.</td></tr>
+        <tr><td><code>~/.cache/claude-statusline/*.json</code></td><td>One byte-offset scan cache per session, so a re-render reads only what was appended. Delete the directory to force a full rescan.</td></tr>
+        <tr><td><code>~/.cache/claude-statusline/pricing.json</code></td><td>The gateway's price list, cached for a day. Only written when cost falls through to the gateway's published ratios.</td></tr>
+        <tr><td><code>~/.claude/statusline-command.py</code></td><td>The installed <em>copy</em> the status line actually runs. Written by <code>install.py</code>, and not updated by <code>git pull</code> — re-run the installer after pulling.</td></tr>
+        <tr><td><code>dashboard/trajectory.config.json</code></td><td>The dashboard's settings, next to the script. Written on the first change you make. Delete it to go back to defaults.</td></tr>
+        <tr><td><code>~/.claude/trajectory/serve.log</code></td><td>Output of a backgrounded server — the console you did not keep.</td></tr>
+        <tr><td><code>~/.claude/trajectory/&lt;session&gt;.html</code></td><td>A <code>--html</code> snapshot, when you do not pass <code>--out</code>.</td></tr>
         <tr><td><code>~/.claude/settings.json</code></td><td>Claude Code's own. Only <code>statusline/install.py</code> ever writes here, and only the <code>statusLine</code> key.</td></tr>
       </tbody>
     </table>
@@ -876,12 +957,15 @@ python3 trajectory.py --text     # a report in the terminal instead</code></pre>
     </p>
 <pre><code>echo '{"model":{"display_name":"test"},"cwd":"/tmp"}' | python3 ~/.claude/statusline-command.py</code></pre>
     <p>
-      It should print a bar. The script never exits non-zero and never prints a
-      traceback — on any failure it degrades to a minimal line, because a
-      broken status line should not take the session with it. If that command
-      works but the bar does not appear, the <code>statusLine</code> key is
-      missing or pointing at the wrong path; re-run
-      <code>install.py --dry-run</code> to see what it would write.
+      It should print a bar. The script never prints a traceback from its own
+      rendering path and never exits non-zero there — on a failure it degrades
+      to a minimal line, because a broken status line should not take the
+      session with it. But <code>CLAUDE_BAR_WIDTH</code> and
+      <code>CLAUDE_CONTEXT_LIMIT</code> are read at import time, before that
+      guard, so a value that is not a number does raise. If the command works
+      but the bar does not appear, the <code>statusLine</code> key is missing or
+      pointing at the wrong path; re-run <code>install.py --dry-run</code> to
+      see what it would write.
     </p>
 
     <h4 class="sub">The percentage is wrong</h4>

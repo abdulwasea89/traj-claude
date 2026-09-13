@@ -35,9 +35,14 @@ python3 install.py --uninstall        # remove the statusLine entry
 python3 install.py --python /usr/bin/python3.12
 ```
 
-The installer copies `statusline-command.py` into your Claude Code directory and
-sets `statusLine` in `settings.json`. If you keep Claude Code's config somewhere
-else, it honours `CLAUDE_CONFIG_DIR`.
+The installer **copies** `statusline-command.py` into your Claude Code directory
+and sets `statusLine` in `settings.json`. If you keep Claude Code's config
+somewhere else, it honours `CLAUDE_CONFIG_DIR`.
+
+Because that is a copy rather than a link, a later `git pull` does **not** reach
+the running bar — re-run `install.py` after pulling to pick up changes. And
+`--uninstall` removes the `statusLine` entry but leaves the copy behind; delete
+`~/.claude/statusline-command.py` yourself if you want the directory clean.
 
 ### What it does to your settings
 
@@ -113,9 +118,13 @@ configured:
 echo '{"model":{"display_name":"test"},"cwd":"/tmp"}' | python3 ~/.claude/statusline-command.py
 ```
 
-It should print a bar. It never exits non-zero and never prints a traceback; on
-any failure it degrades to a minimal line, because a broken status line should
-not take the session with it.
+It should print a bar. The rendering path never prints a traceback and never
+exits non-zero — on a failure it degrades to a minimal line, because a broken
+status line should not take the session with it. Note the two exceptions:
+`CLAUDE_BAR_WIDTH` and `CLAUDE_CONTEXT_LIMIT` are parsed at import time, before
+that guard, so a value that is not a number raises `ValueError` and exits 1.
+That is a deliberately loud failure — a bar drawn at the wrong width, or a
+percentage computed against the wrong window, is worse than no bar.
 
 **The percentage is wrong.** `CLAUDE_CONTEXT_LIMIT` is 200000 by default. If
 your model's window is a different size, the bar and the percent are both
