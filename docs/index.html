@@ -197,14 +197,6 @@ figcaption{color:var(--faint);font-size:12.5px;margin-top:9px;max-width:74ch}
 .duo figure{margin:0}
 .duo figcaption{font-size:12px}
 
-.bar{
-  background:var(--bg-2);border:1px solid var(--hair);border-radius:6px;
-  padding:11px 14px;overflow-x:auto;white-space:pre;
-  font-family:var(--mono);font-size:12.5px;color:var(--fg);margin:0 0 18px;
-}
-.bar b{color:var(--lane-tool);font-weight:400}
-.bar i{color:var(--lane-model);font-style:normal}
-
 table{width:100%;border-collapse:collapse;margin:0 0 20px;font-size:14px}
 th{text-align:left;font:600 10.5px/1 var(--sans);letter-spacing:.1em;
   text-transform:uppercase;color:var(--faint);padding:0 12px 8px 0;
@@ -413,21 +405,25 @@ cd traj-claude</code></pre>
       bottom of the terminal.
     </p>
 
-    <div class="bar">deepseek-v4-flash │ scripts │ <b>█████████░░░</b> │ 77% │ ctx 153.8k/200.0k │ ↑ in 97.77M │ ↓ out 614.7k │ Σ 3.47b │ 1018 msg │ $199.22</div>
+    <figure>
+      <img src="img/statusline.png" width="1366" height="155"
+           alt="The bar in place at the bottom of a Claude Code session: deepseek-v4-flash, scripts, a 74% context bar, ctx 148.4k/200.0k, up in 166.29M, down out 1.04M, a 3.47b all-time total, 1717 msg and $120.75.">
+      <figcaption>In place, at the bottom of a real session.</figcaption>
+    </figure>
 
     <table>
       <thead><tr><th>Field</th><th>What it is</th></tr></thead>
       <tbody>
         <tr><td><code>deepseek-v4-flash</code></td><td>The model serving this session.</td></tr>
         <tr><td><code>scripts</code></td><td>The project directory you are in.</td></tr>
-        <tr><td><code>█████████░░░</code></td><td>Context window used. The colour shifts green → yellow → orange → red as it fills.</td></tr>
-        <tr><td><code>77%</code></td><td>The same thing as a number.</td></tr>
-        <tr><td><code>ctx 153.8k/200.0k</code></td><td>Tokens currently in the window, over your configured limit.</td></tr>
-        <tr><td><code>↑ in 97.77M</code></td><td><strong>Cumulative</strong> input for the session: fresh input + cache reads + cache writes.</td></tr>
-        <tr><td><code>↓ out 614.7k</code></td><td>Cumulative output tokens this session.</td></tr>
+        <tr><td><code>███████░░░</code></td><td>Context window used. The colour shifts green → yellow → orange → red as it fills.</td></tr>
+        <tr><td><code>74%</code></td><td>The same thing as a number.</td></tr>
+        <tr><td><code>ctx 148.4k/200.0k</code></td><td>Tokens currently in the window, over your configured limit.</td></tr>
+        <tr><td><code>↑ in 166.29M</code></td><td><strong>Cumulative</strong> input for the session: fresh input + cache reads + cache writes.</td></tr>
+        <tr><td><code>↓ out 1.04M</code></td><td>Cumulative output tokens this session.</td></tr>
         <tr><td><code>Σ 3.47b</code></td><td>All-time tokens across every session, from Claude Code's own <code>stats-cache.json</code>.</td></tr>
-        <tr><td><code>1018 msg</code></td><td>Your prompts plus the model's replies, this session.</td></tr>
-        <tr><td><code>$199.22</code></td><td>Derived session cost — shown only when you supply rates. Never guessed.</td></tr>
+        <tr><td><code>1717 msg</code></td><td>Your prompts plus the model's replies, this session.</td></tr>
+        <tr><td><code>$120.75</code></td><td>Derived session cost — shown only when you supply rates. Never guessed.</td></tr>
       </tbody>
     </table>
 
@@ -464,16 +460,22 @@ python3 trajectory.py serve      # the same server, without opening a browser
 python3 trajectory.py --text     # a report in the terminal instead</code></pre>
 
     <figure>
-      <img src="img/trajectory.png" width="1600" height="918"
-           alt="The dashboard's Timeline view: a source-colour legend, then one row per turn, each split into four lanes — Input, Model, Output and Tools — with bars placed by wall-clock time.">
+      <img src="img/dashboard.png" width="1322" height="697"
+           alt="The top of the dashboard: the session list down the left, the session header with its live status line, a stacked bar breaking the 200,000-token context window down by source with a legend under it, a per-minute volume chart, the usage billed by the API, and a grid of tiles, one per source.">
       <figcaption>
-        The event stream. One row per turn, one bar per <em>measured span</em>
-        between two records, placed by wall-clock time. Each turn is split into
-        four lanes, so the width of a turn can be read as: how much of it was
-        waiting on the model, how much was it thinking, how much was it writing,
-        and how much was tools running.
+        Every session on disk down the left, the current one's header and live
+        status line across the top, then the context window broken down by
+        source — reasoning is the largest single owner at 30.3% — a per-minute
+        volume chart, the usage the API actually billed, and one tile per
+        source. Every token in the window has an owner.
       </figcaption>
     </figure>
+
+    <p>
+      Under the header is the <strong>event stream</strong>: one row per turn,
+      one bar per <em>measured span</em> between two records, placed on a
+      wall-clock axis. Each turn is split into four lanes.
+    </p>
 
     <div class="lanes">
       <span class="input"><i></i>Input <em>waiting on the model</em></span>
@@ -485,16 +487,20 @@ python3 trajectory.py --text     # a report in the terminal instead</code></pre>
     <p>
       The lanes are the point of the view. A turn that took four minutes and a
       turn that took four minutes and nineteen tool calls look identical in a
-      transcript and completely different here.
+      transcript and completely different here. A lane is read off what the span
+      points at, so the width of a turn is: how much of it was waiting on the
+      model, how much was it thinking, how much was it writing, and how much was
+      tools running.
     </p>
 
     <figure>
-      <img src="img/overview.png" width="1600" height="918"
-           alt="The top of the dashboard: a session list, the current session's header with record counts, and a stacked bar breaking the context window down by source.">
+      <img src="img/trajectory.png" width="1600" height="918"
+           alt="The event stream: a legend row naming the four lanes, then one block per turn headed by its record, token and duration totals — Turn 94, 119 records, 27 nested, 24.8k tok, 8m 53s — each block a grid of Input, Model, Output and Tools rows with bars placed along a shared time axis.">
       <figcaption>
-        The top of the page. Sessions on the left, the session header in the
-        middle, and the context window broken down by source underneath it —
-        every token in the window has an owner.
+        Four turns. Turn 94 ran 8m 53s over 119 records; turn 91, further down,
+        ran 17m 48s over 225. The 82 turns above this window are one click away,
+        and a tool call is paired with the result it produced rather than
+        counted as two spans.
       </figcaption>
     </figure>
 

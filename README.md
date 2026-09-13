@@ -23,22 +23,20 @@ README is the short version.
 
 Claude Code reserves one row at the bottom of the terminal. This fills it:
 
-```
-deepseek-v4-flash │ scripts │ █████████░░░ │ 77% │ ctx 153.8k/200.0k │ ↑ in 97.77M │ ↓ out 614.7k │ Σ 3.47b │ 1018 msg │ $199.22
-```
+![The status bar at the bottom of a Claude Code session — model, project, context bar, percent used, cumulative in and out, all-time total, message count and session cost](docs/img/statusline.png)
 
 | field | meaning |
 |---|---|
 | `deepseek-v4-flash` | the model serving this session |
 | `scripts` | the project directory you are in |
-| `█████████░░░` | context window used, colour-shifting green → yellow → orange → red |
-| `77%` | the same thing as a number |
-| `ctx 153.8k/200.0k` | tokens currently in the window, over your configured limit |
-| `↑ in 97.77M` | **cumulative** input: fresh input + cache reads + cache writes, all session |
-| `↓ out 614.7k` | cumulative output tokens this session |
+| `███████░░░` | context window used, colour-shifting green → yellow → orange → red |
+| `74%` | the same thing as a number |
+| `ctx 148.4k/200.0k` | tokens currently in the window, over your configured limit |
+| `↑ in 166.29M` | **cumulative** input: fresh input + cache reads + cache writes, all session |
+| `↓ out 1.04M` | cumulative output tokens this session |
 | `Σ 3.47b` | all-time tokens across every session, from Claude Code's own `stats-cache.json` |
-| `1018 msg` | your prompts plus the model's replies, this session |
-| `$199.22` | derived session cost — only shown when you supply rates |
+| `1717 msg` | your prompts plus the model's replies, this session |
+| `$120.75` | derived session cost — only shown when you supply rates |
 
 Fields drop out rather than showing a placeholder when they are not available:
 with no transcript yet you get the bar, `0%`, and `no transcript yet`.
@@ -89,7 +87,7 @@ Costs, troubleshooting and every field in more detail:
 The transcript Claude Code writes contains everything the model saw. This reads
 it and shows you the shape of it.
 
-![The dashboard's Timeline view: one row per turn, each split into four lanes — Input, Model, Output and Tools — with bars placed by wall-clock time](docs/img/trajectory.png)
+![The dashboard on midnight: the session list, the session header, the context window broken down by source with a per-minute volume chart, the billed totals, and one tile per source](docs/img/dashboard.png)
 
 ```sh
 cd traj-claude/dashboard
@@ -101,7 +99,9 @@ It reads `~/.claude/projects/*/*.jsonl` and binds to `127.0.0.1` only — the
 transcript holds your prompts, your code and your file paths, so it does not go
 on a network.
 
-The bar chart above is the point of the whole thing. Each turn is one row, split
+![The event stream: a legend naming the four lanes, then one block per turn headed by its record, token and duration totals, each block a grid of Input, Model, Output and Tools rows with bars along a shared time axis](docs/img/trajectory.png)
+
+The bar chart is the point of the whole thing. Each turn is one row, split
 into four lanes:
 
 | lane | what it measures |
