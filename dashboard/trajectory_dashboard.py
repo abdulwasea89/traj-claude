@@ -75,9 +75,10 @@ CSS = r"""
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 
-/* The dark stocks. Each one is a different cast of near-black -- neutral, green,
-   blue -- but they share the two things that actually make a dark theme work,
-   which is why they are set together rather than three times:
+/* The dark stocks. Each one is a different cast of near-black -- neutral, or
+   green one way and green another -- but they share the two things that
+   actually make a dark theme work, which is why they are set together rather
+   than three times:
      * a raised edge on floating panels, because a black shadow on a black page
        is no shadow at all, and a dropdown that cannot be told apart from what it
        covers is a dropdown you cannot read;
@@ -106,21 +107,38 @@ body[data-theme=ink]{
 }
 
 /* The same black, cast green -- a terminal that grew a dashboard. The ramp is
-   tinted, but --brand is deliberately left alone: the accent is a setting, and
-   a theme that silently overrode it would make that knob look broken. */
+   tinted here and the accent is tinted by THEME_BRAND below, which is also
+   where a hand-picked accent is protected from being overwritten. */
 body[data-theme=green]{
   --bg:#020503; --bg-2:#061009; --bg-3:#0C1A11;
   --fg:#D9F2E1; --muted:#7CA98B; --faint:#57775F;
   --hair-c:#123020; --hair2-c:#0C2116; --wash:#08150D;
 }
 
-/* Midnight: the dark of a screen at 2am rather than the dark of a switched-off
-   one. Blue-cast and lifted a step off pure black, so panels read as a space
-   with depth in it rather than holes cut in a void. */
+/* Midnight. This one is not invented here -- it is the palette out of
+   DESIGN.md, which is green-cast rather than blue and is declared in OKLCH, so
+   the ramp reads as what it is: one hue, 165, with lightness doing all the
+   work. The hex beside each line is that OKLCH in sRGB, for reading.
+
+   DESIGN.md also pairs each stock with an accent -- a *lighter* green on the
+   dark ones, because a 0.52 green disappears into a 0.16 background. That
+   pairing is not a CSS rule here (an inline --brand on :root always wins, so a
+   palette that set one would make the Accent colour knob look broken); it is
+   THEME_BRAND in the script, applied when you switch palette.
+
+   Three tokens DESIGN.md's ramp does not name -- the second hairline, the wash
+   and the faint label -- are that ramp interpolated between background and
+   card, the same relationship the other stocks use. */
 body[data-theme=midnight]{
-  --bg:#070B14; --bg-2:#0D1420; --bg-3:#182233;
-  --fg:#DCE6F2; --muted:#8B9DB6; --faint:#61748C;
-  --hair-c:#1E2B3D; --hair2-c:#151F2E; --wash:#0B1220;
+  --bg:oklch(0.16 0.012 165);       /* #090F0C  background */
+  --bg-2:oklch(0.205 0.014 165);    /* #111916  card       */
+  --bg-3:oklch(0.26 0.016 165);     /* #1D2722  hover/fill */
+  --fg:oklch(0.95 0.008 160);       /* #EAF0ED  foreground */
+  --muted:oklch(0.72 0.016 165);    /* #9CA8A2  muted copy */
+  --faint:oklch(0.57 0.016 165);    /* #6F7B75  derived    */
+  --hair-c:oklch(0.31 0.014 165);   /* #2A332E  border     */
+  --hair2-c:oklch(0.235 0.014 165); /* #18201C  derived    */
+  --wash:oklch(0.185 0.013 165);    /* #0D1511  derived    */
 }
 
 /* Interface scale. The design is set in px rather than rem, so scaling the
@@ -2260,6 +2278,49 @@ function syncPollTimer(){
   if(STATE.live && CFG.live) pollTimer = setInterval(poll, ms);
 }
 
+/* The accent each stock is designed around, from DESIGN.md's theme table. A
+   palette is a look, and on the dark stocks part of that look is which green
+   the pressed buttons are -- the doc pairs them with a *lighter* green, because
+   a 0.52 green sinks into a 0.16 background.
+
+   They are hex rather than the OKLCH the doc declares them in because the
+   control for this setting is an <input type=color>, which holds hex and
+   nothing else. Ink is not in the table on purpose: DESIGN.md's pure-black
+   stock is a different theme with a cyan accent of its own, and adopting that
+   would be shipping a new theme rather than correcting this one, so the neutral
+   black keeps whatever accent you have. */
+const THEME_BRAND = {
+  paper:    '#2F6F4E',   /* light            oklch(0.52 0.15 152) */
+  green:    '#259F56',   /* dark, mid green  oklch(0.62 0.15 152) */
+  midnight: '#35C177',   /* DESIGN.md        oklch(0.72 0.16 155) */
+};
+
+/* What accent this palette wants, given the one you already have. A palette
+   claims an accent only while what you have is what a *palette* put there: the
+   shipped accents are not choices, so they follow. The moment you pick a colour
+   by hand it is yours, and every switch after that leaves it alone. */
+function themeBrand(theme, prevTheme){
+  const next = THEME_BRAND[theme];
+  if(next == null) return null;
+  const cur = String(C('brand'));
+  if(cur === String(next)) return null;
+  const from = prevTheme && THEME_BRAND[prevTheme] != null
+    ? THEME_BRAND[prevTheme]
+    : CFG_DEF.brand;          /* boot, or a stock that has no accent of its own */
+  return cur === String(from) ? next : null;
+}
+
+/* The boot half of the rule below: a config saved before a palette carried its
+   accent, or while a different palette was selected, would come up wearing the
+   wrong green. */
+function syncThemeBrand(){
+  const next = themeBrand(CFG.theme, null);
+  if(next == null) return;
+  CFG.brand = next;
+  markRow('brand');
+  persist({brand: next}, true);
+}
+
 /* The declarative half: values that reach the page as a value. A colour knob
    and the rule that paints with it are one line apart in the spec, and changing
    the colour moves every place that reads the variable -- which is the reason
@@ -2385,6 +2446,7 @@ function initFromCfg(){
     $('[data-adv]').setAttribute('aria-pressed', 'true');
   }
   renderSrcMenu();
+  syncThemeBrand();
   applyCfg(null);
 }
 
@@ -2516,10 +2578,24 @@ function persist(patch, immediate){
 
 function setCfg(k, v, opts){
   const prev = Object.assign({}, CFG);
+  const patch = {};
   CFG[k] = v;
+  patch[k] = v;
+  /* A palette brings its accent with it. It goes into the same patch rather
+     than a write of its own, because persist() holds one timer: a second call
+     would cancel the first, and the server's echo of the surviving patch would
+     then put the old accent back. */
+  if(k === 'theme'){
+    const accent = themeBrand(v, prev.theme);
+    if(accent != null){
+      CFG.brand = accent;
+      patch.brand = accent;
+      markRow('brand');
+    }
+  }
   applyCfg(prev);
   markRow(k);
-  persist({[k]: v}, opts && opts.immediate);
+  persist(patch, opts && opts.immediate);
 }
 
 /* ---------------------------------------------------------------------------

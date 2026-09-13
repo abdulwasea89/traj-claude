@@ -73,9 +73,10 @@ CONFIG_SPEC = [
     {"k": "theme", "g": "Appearance", "l": "Palette", "t": "enum",
      "d": "paper", "opts": ["paper", "ink", "green", "midnight"],
      "attr": "theme", "scope": "live",
-     "h": "Paper is the light stock; ink is true black; green and midnight are "
-          "that black cast green and blue. The accent is still the Accent "
-          "colour knob"},
+     "h": "Paper is the light stock, ink is true black, and green and midnight "
+          "are that black cast green -- midnight being the DESIGN.md palette. "
+          "A palette brings its own accent with it unless you have already "
+          "picked your own Accent colour"},
     {"k": "density", "g": "Appearance", "l": "Density", "t": "enum",
      "d": "comfortable", "opts": ["comfortable", "compact"], "attr": "density",
      "scope": "live", "h": "Row padding across every list on the page"},

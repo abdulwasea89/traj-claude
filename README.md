@@ -69,10 +69,13 @@ Four palettes, under Settings → Appearance → Palette:
 | **paper** | warm off-white, the default |
 | **ink** | true `#000000`, for an OLED panel |
 | **green** | that black, cast green |
-| **midnight** | that black, cast blue |
+| **midnight** | the `DESIGN.md` palette: green-cast near-black, declared in OKLCH |
 
-The themes move only the background ramp. The accent colour stays yours, so
-changing theme never quietly undoes the Accent colour setting.
+A palette brings the accent `DESIGN.md` pairs with it — a lighter green on the
+dark stocks, because a 0.52 green sinks into a 0.16 background. Pick an accent
+by hand and it survives every switch: a palette only claims the accent while it
+is still the one the last palette set. Ink is the exception and keeps whatever
+accent you have.
 
 Its settings live in `dashboard/trajectory.config.json`, next to the script,
 created on first save. It never writes to `~/.claude/settings.json`.
