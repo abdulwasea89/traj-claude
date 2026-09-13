@@ -22,6 +22,7 @@ session's real billed usage is reported separately in the header and is not
 estimated.
 """
 
+import ipaddress
 import json
 import os
 import re
@@ -1129,6 +1130,7 @@ def build_state(session_arg=None, after=0):
     `after` returns only events past that index, so a live page can append
     without re-sending the whole session every couple of seconds.
     """
+    cfg = load_config()
     current = (os.environ.get("CLAUDE_CODE_SESSION_ID") or "")[:8]
     sessions = []
     for p in all_transcripts()[:80]:
@@ -1150,12 +1152,20 @@ def build_state(session_arg=None, after=0):
     if not path or not Path(path).exists():
         return {"sessions": sessions, "session": "", "records": 0, "summary": [],
                 "billed": {}, "events": [], "total": 0,
-                "config": load_config(), "config_spec": CONFIG_SPEC, "live": True,
+                "config": cfg, "config_spec": CONFIG_SPEC, "live": True,
                 "config_path": str(CONFIG_PATH),
                 "script_path": str(Path(__file__).resolve())}
 
     records = read_records(path)
-    events, billed = events_of(records)
+    # Billed usage is read off every record, before the cap, and stays exact:
+    # what the session cost must not move because a view cap changed. `event_cap`
+    # only decides how much of a very long session the views carry, and it keeps
+    # the newest records, which are the ones a live page is looking at.
+    _all, billed = events_of(records)
+    event_cap = int(cfg.get("event_cap") or 30000)
+    if len(records) > event_cap:
+        records = records[-event_cap:]
+    events, _ = events_of(records)
     visible = [e for e in events if e[1] not in BOOKKEEPING]
 
     totals = {}
@@ -1182,10 +1192,11 @@ def build_state(session_arg=None, after=0):
     ][-180:]
 
     # Full text is only shipped for recent events. A long session can hold
-    # thousands of events at up to 4k chars each, and the older ones are
-    # rarely expanded -- the excerpt is enough to show, and the dashboard
+    # thousands of events at up to `payload_cap` chars each, and the older ones
+    # are rarely expanded -- the excerpt is enough to show, and the dashboard
     # labels the difference rather than pretending it has the whole thing.
     cutoff = max(0, len(visible) - 1500)
+    payload_cap = int(cfg.get("payload_cap") or 4000)
 
     out = []
     for idx, (ts, src, tok, ex, meta) in enumerate(visible[after:], start=after):
@@ -1194,9 +1205,9 @@ def build_state(session_arg=None, after=0):
         # A tool call's own text is its input JSON -- the name rides in `name`
         # so the view can render it as a badge and colour the JSON separately.
         if src == "tool call" and meta.get("input"):
-            full = meta["input"][:4000]
+            full = meta["input"][:payload_cap]
         else:
-            full = text[:4000] if idx >= cutoff else ""
+            full = text[:payload_cap] if idx >= cutoff else ""
         out.append({
             "t": hhmmss(ts),
             "ts": epoch_ms(ts),
@@ -1307,13 +1318,40 @@ def spawn_serve(port):
     return "failed", str(log)
 
 
+def _is_loopback(host):
+    """True when `host` cannot be reached from another machine.
+
+    The whole 127/8 block is loopback, not just 127.0.0.1, and a bind address
+    can be a name rather than an address -- so this answers "is it obviously
+    local", and anything it cannot parse is treated as not local. Erring that
+    way prints a warning that was not needed; erring the other way prints no
+    warning on an exposed session log.
+    """
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return host == "localhost"
+
+
 def serve(port=8765, session_arg=None):
-    """Local-only server. Binds 127.0.0.1 so the log never leaves the box."""
+    """The dashboard's HTTP server.
+
+    Loopback by default, because the transcript is your prompts, your code and
+    your file paths. `bind` in Settings -> Server can move it -- the setting
+    says what it costs you -- and the startup line says so again when it is not
+    loopback, so nobody exposes a session log without being told twice.
+    """
     import threading
 
     import trajectory_dashboard as dash
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     from urllib.parse import urlparse, parse_qs
+
+    # Read once, at startup: both `bind` and `log_requests` are restart-scoped,
+    # so changing them in the page is a change to the next server, not this one.
+    cfg = load_config()
+    bind = str(cfg.get("bind") or "127.0.0.1")
+    log_requests = bool(cfg.get("log_requests"))
 
     def page_html():
         """Rendered per request, not cached: a reload has to pick up settings
@@ -1323,7 +1361,12 @@ def serve(port=8765, session_arg=None):
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *a):
-            pass  # quiet: the default logger writes to stderr every request
+            # Quiet by default: the base class writes a line to stderr for every
+            # request, and a live page polls. `log_requests` turns it back on --
+            # for a background server that stderr is serve.log, for `serve` it
+            # is the terminal.
+            if log_requests:
+                super().log_message(*a)
 
         def _send(self, code, body, ctype):
             b = body.encode("utf-8") if isinstance(body, str) else body
@@ -1408,12 +1451,15 @@ def serve(port=8765, session_arg=None):
             else:
                 self._send(404, "not found", "text/plain; charset=utf-8")
 
-    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    srv = ThreadingHTTPServer((bind, port), Handler)
     url = f"http://127.0.0.1:{port}/"
     print(f"\n  {BOLD}trajectory dashboard{RESET}  {CYAN}{url}{RESET}")
+    if not _is_loopback(bind):
+        print(f"  {YELLOW}bound to {bind}{RESET} {DIM}-- this session log is "
+              f"reachable from other machines{RESET}")
     print(f"  {DIM}live · ctrl-c to stop, or the Stop button in the page{RESET}")
     print(f"  {DIM}restart: python3 {os.path.abspath(__file__)} serve --port {port}{RESET}\n")
-    if load_config().get("open_browser"):
+    if cfg.get("open_browser"):
         open_in_browser(url)
     try:
         srv.serve_forever()

@@ -2407,6 +2407,13 @@ function stopServer(){
     btn.textContent = '■ not served';
     return;
   }
+  /* `confirm_stop` is on by default. It is off for anyone who restarts the
+     server all day and would rather not be asked, and on for everyone else --
+     the button is one click away from a dead dashboard either way. */
+  if(CFG.confirm_stop !== false &&
+     !window.confirm('Stop the dashboard server? The page will go dead until you restart it.')){
+    return;
+  }
   btn.disabled = true; btn.textContent = '■ stopping…';
   fetch('/api/shutdown', {method:'POST', headers:{'X-Trajectory':'stop'}})
     .then(()=>{
