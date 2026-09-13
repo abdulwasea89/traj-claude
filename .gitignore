@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+
+# Created on the first settings save. The defaults already live in
+# CONFIG_SPEC, so this file is your own state, not part of the project.
+trajectory.config.json
+
+.DS_Store
+Thumbs.db
