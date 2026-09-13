@@ -61,6 +61,7 @@ CSS = r"""
   --wf-gap:10px;
   --wf-input:#2E6FB8;
   --wf-model:#8A4FBF;
+  --wf-out:#B4642A;
   --wf-tool:#2F7F5F;
   --src-prompt:#B4642A;
   --src-text:#8A4FBF;
@@ -138,6 +139,10 @@ body{
   --fill-reasoning:var(--src-reasoning); --fill-toolcall:var(--src-toolcall);
   --fill-toolresult:var(--src-toolresult); --fill-inject:var(--src-inject);
   --fill-system:var(--src-system); --fill-other:var(--src-other);
+  /* The four waterfall lanes are the same kind of value -- a colour setting the
+     page draws a bar in -- so they take the same lift, for the same reason. */
+  --lane-input:var(--wf-input); --lane-model:var(--wf-model);
+  --lane-out:var(--wf-out); --lane-tool:var(--wf-tool);
 }
 
 /* The lift is guarded, and the guard is not decoration: oklch(from ...) that
@@ -156,6 +161,10 @@ body{
     --fill-inject:oklch(from var(--src-inject) calc(l * 1.38) calc(c * 1.12) h);
     --fill-system:oklch(from var(--src-system) calc(l * 1.38) calc(c * 1.12) h);
     --fill-other:oklch(from var(--src-other) calc(l * 1.38) calc(c * 1.12) h);
+    --lane-input:oklch(from var(--wf-input) calc(l * 1.38) calc(c * 1.12) h);
+    --lane-model:oklch(from var(--wf-model) calc(l * 1.38) calc(c * 1.12) h);
+    --lane-out:oklch(from var(--wf-out) calc(l * 1.38) calc(c * 1.12) h);
+    --lane-tool:oklch(from var(--wf-tool) calc(l * 1.38) calc(c * 1.12) h);
   }
 }
 body[data-theme=midnight],body[data-theme=dark],body[data-theme=oled]{
@@ -464,8 +473,14 @@ h1{font-family:var(--serif);font-weight:400;font-size:clamp(27px,4.2vw,42px);
   margin:8px 0 0;letter-spacing:.06em}
 
 /* tiles */
+/* The grid of source tiles is a block in the same column as the panels, so it
+   carries the same gap below it that they do. Without it the next panel sat
+   flush against the tiles, and the panel after *that* was patched with an
+   inline margin-top to compensate -- one block that forgot the rule and one
+   that worked around it. Both are gone now. */
 .tiles{display:grid;gap:10px;
-  grid-template-columns:repeat(auto-fill,minmax(158px,1fr))}
+  grid-template-columns:repeat(auto-fill,minmax(158px,1fr));
+  margin-bottom:var(--gap)}
 .tile{border:1px solid var(--hair);border-radius:var(--radius);padding:12px;
   background:var(--bg-2);min-width:0}
 .tile .src{display:flex;align-items:center;gap:7px;font-family:var(--mono);
@@ -629,9 +644,10 @@ h1{font-family:var(--serif);font-weight:400;font-size:clamp(27px,4.2vw,42px);
 .wfseg{position:absolute;top:0;height:100%;min-width:1.5px;border-radius:1.5px;
   cursor:default}
 .wfseg:hover{outline:1px solid var(--fg);outline-offset:0}
-.wfseg.input{background:var(--wf-input)}
-.wfseg.model{background:var(--wf-model)}
-.wfseg.tool{background:var(--wf-tool)}
+.wfseg.input{background:var(--lane-input)}
+.wfseg.model{background:var(--lane-model)}
+.wfseg.out{background:var(--lane-out)}
+.wfseg.tool{background:var(--lane-tool)}
 .wf-axis{display:grid;grid-template-columns:var(--wf-lw) minmax(0,1fr);gap:9px;
   margin-top:5px}
 .wf-ticks{position:relative;height:11px;border-top:1px solid var(--hair-2)}
@@ -1636,10 +1652,17 @@ function phaseSegments(t){
     else if((a.source === 'user prompt' || a.source === 'tool result') &&
             b.source !== 'tool result') lane = 'input';
     else if(a.source === 'tool result' || a.source === 'user prompt') lane = 'input';
+    /* A span toward a text record is the model writing the answer, and a span
+       toward a reasoning record is it thinking. Both were the one "model" lane,
+       which is why the lane could not answer the question the timeline is for:
+       how much of the wait was thought and how much was output. The tool lane
+       is already read off the span's destination; this is the same reading. */
+    else if(b.source === 'text') lane = 'out';
     else lane = 'model';
     const what = lane === 'tool' ? (a.name || 'tool')
       : lane === 'model' ? (b.source === 'reasoning' ? 'reasoning'
         : b.source === 'text' ? 'text' : b.source)
+      : lane === 'out' ? 'output'
       : 'round trip';
     out.push({lane:lane, a:a.ts, b:b.ts, what:what, tok:b.tokens||0,
               ia:ia, ib:ib});
@@ -1670,7 +1693,7 @@ function waterfallHTML(t, n){
   const cut = segs.length > WF_SEG_CAP;
   const use = cut ? segs.slice(0, WF_SEG_CAP) : segs;
 
-  const rows = [['input','Input'],['model','Model'],['tool','Tools']].map(([k,label])=>{
+  const rows = [['input','Input'],['model','Model'],['out','Output'],['tool','Tools']].map(([k,label])=>{
     const bars = use.filter(s=>s.lane === k).map(s=>{
       const x = (s.a - span.lo)/dur*100;
       /* The floor is what keeps a 20ms call visible next to a 180s one; how
@@ -1694,7 +1717,7 @@ function waterfallHTML(t, n){
       (f === 0 ? '0' : fmtMs(dur*f))+'</span>').join('');
 
   const nested = t.items.filter(i=>isNested(i)).length;
-  /* Three empty lanes are sixty pixels of nothing. A turn whose only content
+  /* Four empty lanes are eighty pixels of nothing. A turn whose only content
      is a prompt, or whose spans the filters removed, says so in one line. */
   const body = use.length ? rows +
       '<div class="wf-axis"'+(WF_LABELS ? '' : ' style="grid-template-columns:minmax(0,1fr)"')+'>'+
@@ -3613,7 +3636,7 @@ PAGE = r"""<!doctype html>
       </div>
     </div>
 
-    <div class="panel" style="margin-top:14px">
+    <div class="panel">
       <div class="panel-h">
         <p class="label">Event stream</p>
         <span class="hint" id="viewhint">click any step to expand · tool calls nest their result</span>
@@ -3621,7 +3644,8 @@ PAGE = r"""<!doctype html>
       <div class="panel-b" id="wfwrap">
         <div class="wf-legend">
           <span><i class="wfseg input"></i>Input <em>waiting on the model</em></span>
-          <span><i class="wfseg model"></i>Model <em>producing</em></span>
+          <span><i class="wfseg model"></i>Model <em>reasoning</em></span>
+          <span><i class="wfseg out"></i>Output <em>writing the answer</em></span>
           <span><i class="wfseg tool"></i>Tools <em>running</em></span>
         </div>
         <div id="wf"></div>
