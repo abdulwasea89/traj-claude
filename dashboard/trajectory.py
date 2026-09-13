@@ -71,12 +71,13 @@ CONFIG_LOCK = __import__("threading").Lock()
 CONFIG_SPEC = [
     # ---------------------------------------------------------- appearance
     {"k": "theme", "g": "Appearance", "l": "Palette", "t": "enum",
-     "d": "paper", "opts": ["paper", "ink", "green", "midnight"],
+     "d": "midnight",
+     "opts": ["midnight", "light", "dark", "solarized", "oled", "paper"],
+     "retired": {"ink": "oled", "green": "midnight"},
      "attr": "theme", "scope": "live",
-     "h": "Paper is the light stock, ink is true black, and green and midnight "
-          "are that black cast green -- midnight being the DESIGN.md palette. "
-          "A palette brings its own accent with it unless you have already "
-          "picked your own Accent colour"},
+     "h": "DESIGN.md's five stocks -- midnight, light, dark, solarized, oled -- "
+          "plus paper, this dashboard's own warm off-white. A stock brings its "
+          "own accent with it unless you have already picked an Accent colour"},
     {"k": "density", "g": "Appearance", "l": "Density", "t": "enum",
      "d": "comfortable", "opts": ["comfortable", "compact"], "attr": "density",
      "scope": "live", "h": "Row padding across every list on the page"},
@@ -534,7 +535,12 @@ def _coerce(spec, v):
             n = float(v)
             return max(float(spec["min"]), min(float(spec["max"]), n))
         if t == "enum":
-            return v if v in spec["opts"] else spec["d"]
+            if v in spec["opts"]:
+                return v
+            # A name this build no longer has. One that was renamed is sent to
+            # what it became, so an old config keeps the look it had instead of
+            # landing on whatever the default happens to be.
+            return spec.get("retired", {}).get(v, spec["d"])
         if t == "color":
             s = str(v).strip()
             if not s.startswith("#"):
@@ -1388,7 +1394,13 @@ def serve(port=8765, session_arg=None):
                     self._send(500, json.dumps({"error": str(e)}), "application/json")
             elif u.path == "/api/config":
                 self._send(200, json.dumps(load_config()), "application/json")
-            elif u.path in ("/", "/index.html"):
+            elif u.path in ("/", "/index.html", "/settings", "/settings/",
+                            "/extract", "/extract/"):
+                # One document, three URLs. Settings and Extract are pages in
+                # their own right rather than panels on the session -- their
+                # own address, their own title, and Back returns you to the
+                # session instead of out of the dashboard. The client reads
+                # the path on load and shows the right one.
                 self._send(200, page_html(), "text/html; charset=utf-8")
             else:
                 self._send(404, "not found", "text/plain; charset=utf-8")

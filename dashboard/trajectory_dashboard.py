@@ -22,7 +22,12 @@ CSS = r"""
   /* Every token below is a settings value with a default that matches the
      design system. applyCfg() writes the ones a setting declares (`cssvar` +
      `unit` in trajectory.py's CONFIG_SPEC) onto this element, so a knob and
-     the thing it moves are one line apart rather than two lists that drift. */
+     the thing it moves are one line apart rather than two lists that drift.
+
+     This ramp is the **paper** palette, and it is also the fallback: a stock
+     with no rule of its own, or a `data-theme` no palette claims, lands here.
+     Paper is deliberately not restated in a body[data-theme=paper] block below
+     -- there would then be two copies to keep in step. */
   --bg:#F7F5F2;
   --bg-2:#FFFFFF;
   --bg-3:#EDE9E3;
@@ -75,58 +80,92 @@ CSS = r"""
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 
-/* The dark stocks. Each one is a different cast of near-black -- neutral, or
-   green one way and green another -- but they share the two things that
-   actually make a dark theme work, which is why they are set together rather
-   than three times:
-     * a raised edge on floating panels, because a black shadow on a black page
-       is no shadow at all, and a dropdown that cannot be told apart from what it
-       covers is a dropdown you cannot read;
-     * a black shadow colour, instead of the paper theme's warm one. */
-body[data-theme=ink],body[data-theme=green],body[data-theme=midnight]{
+/* --- the palettes ---------------------------------------------------------
+   DESIGN.md's five stocks -- midnight, light, dark, solarized, oled -- plus
+   paper, which is this dashboard's own warm off-white and what the :root ramp
+   above already is. Paper is untouched by any of them: `data-theme=paper`
+   matches no rule here and falls through to :root.
+
+   Four of the five come from the doc, but only midnight does the doc tabulate.
+   The other four are read off its theme table the way the doc says a theme
+   works -- "the same token table re-hued" -- so light and dark are midnight's
+   ramp at hue 90 (the doc's "warm charcoal" / "warm off-white"), solarized is
+   the classic Solarized Light sand, and oled is the pure black the doc names.
+   Where the doc gives an accent it is used verbatim; a stock the doc gives no
+   accent for would have none.
+
+   What the three dark stocks share is why they are set together: a raised edge
+   on floating panels, because a black shadow on a black page is no shadow at
+   all and a dropdown you cannot tell apart from what it covers is a dropdown
+   you cannot read. */
+body[data-theme=light],body[data-theme=dark],body[data-theme=midnight],
+body[data-theme=solarized],body[data-theme=oled]{
+  /* --hair is a mix of --hair-c, and a custom property is substituted where it
+     is *declared*: the :root declaration resolves against :root's --hair-c and
+     hands that finished colour down to everyone. A stock that changes --hair-c
+     on body would leave every hairline on the page paper's. So the mix is
+     restated here, on the element that carries the stock, and re-resolves
+     against that stock's own --hair-c. --pop-edge comes along because :root
+     defines it as var(--hair) and it would otherwise be frozen the same way. */
+  --hair:color-mix(in oklab, var(--hair-c) calc(var(--hair-a) * 1%), transparent);
+  --hair-2:color-mix(in oklab, var(--hair2-c) calc(var(--hair-a) * 1%), transparent);
+  --pop-edge:var(--hair);
+}
+body[data-theme=dark],body[data-theme=midnight],body[data-theme=oled]{
   --pop-edge:color-mix(in oklab, var(--fg) 16%, transparent);
   --shadow-c:0,0,0;
 }
-body[data-theme=ink] .noise,body[data-theme=green] .noise,
-body[data-theme=midnight] .noise{mix-blend-mode:screen;opacity:.05}
-body[data-theme=ink] .panel,body[data-theme=ink] .tile,body[data-theme=ink] .turn,
-body[data-theme=green] .panel,body[data-theme=green] .tile,
-body[data-theme=green] .turn,body[data-theme=midnight] .panel,
-body[data-theme=midnight] .tile,body[data-theme=midnight] .turn{
+body[data-theme=dark] .noise,body[data-theme=midnight] .noise,
+body[data-theme=oled] .noise{mix-blend-mode:screen;opacity:.05}
+body[data-theme=dark] .panel,body[data-theme=dark] .tile,body[data-theme=dark] .turn,
+body[data-theme=midnight] .panel,body[data-theme=midnight] .tile,
+body[data-theme=midnight] .turn,body[data-theme=oled] .panel,
+body[data-theme=oled] .tile,body[data-theme=oled] .turn{
   border-color:var(--hair)}
 
-/* True black, not dark grey. On an OLED panel a #000 background is the pixels
-   switched off, and the hairlines carry the structure instead of a lifted
-   surface -- which is why --bg-2 is #0A0A0A and not the #1A1D22 an ordinary
-   dark theme would use. --faint is lighter than it was: at 9.5px, a label that
-   fails contrast is a label that is not there. */
-body[data-theme=ink]{
-  --bg:#000000; --bg-2:#0A0A0A; --bg-3:#161616;
-  --fg:#F0EFEC; --muted:#94918B; --faint:#6E6B65;
-  --hair-c:#242424; --hair2-c:#161616; --wash:#101010;
+/* Light: warm off-white, the other end of the dark stock's ramp. The doc gives
+   it a *deeper* green than the dark stocks carry -- 0.52 against midnight's
+   0.72 -- because an accent has to hold against its own background, and what
+   reads on near-black disappears on near-white. */
+body[data-theme=light]{
+  --bg:oklch(0.97 0.008 90);        /* #F7F5EF  background */
+  --bg-2:oklch(0.995 0.004 90);     /* #FEFDFA  card       */
+  --bg-3:oklch(0.93 0.012 90);      /* #EBE8DF  hover/fill */
+  --fg:oklch(0.22 0.01 90);         /* #1C1A15  foreground */
+  --muted:oklch(0.52 0.012 90);     /* #6B6961  muted copy */
+  --faint:oklch(0.68 0.012 90);     /* #9B9890  derived    */
+  --hair-c:oklch(0.89 0.01 90);     /* #DDDBD3  border     */
+  --hair2-c:oklch(0.93 0.01 90);    /* #EAE8E0  derived    */
+  --wash:oklch(0.95 0.01 90);       /* #F1EEE7  derived    */
 }
 
-/* The same black, cast green -- a terminal that grew a dashboard. The ramp is
-   tinted here and the accent is tinted by THEME_BRAND below, which is also
-   where a hand-picked accent is protected from being overwritten. */
-body[data-theme=green]{
-  --bg:#020503; --bg-2:#061009; --bg-3:#0C1A11;
-  --fg:#D9F2E1; --muted:#7CA98B; --faint:#57775F;
-  --hair-c:#123020; --hair2-c:#0C2116; --wash:#08150D;
+/* Dark: warm charcoal, hue 90. A step up off midnight's near-black, so the two
+   read as different rooms rather than the same room at a different monitor
+   brightness. */
+body[data-theme=dark]{
+  --bg:oklch(0.2 0.008 90);         /* #171612  background */
+  --bg-2:oklch(0.245 0.009 90);     /* #22201C  card       */
+  --bg-3:oklch(0.3 0.01 90);        /* #302E28  hover/fill */
+  --fg:oklch(0.94 0.006 90);        /* #EDEBE7  foreground */
+  --muted:oklch(0.7 0.01 90);       /* #A19E98  muted copy */
+  --faint:oklch(0.55 0.01 90);      /* #74716B  derived    */
+  --hair-c:oklch(0.33 0.008 90);    /* #373531  border     */
+  --hair2-c:oklch(0.26 0.008 90);   /* #252420  derived    */
+  --wash:oklch(0.22 0.008 90);      /* #1C1A16  derived    */
 }
 
-/* Midnight. This one is not invented here -- it is the palette out of
-   DESIGN.md, which is green-cast rather than blue and is declared in OKLCH, so
-   the ramp reads as what it is: one hue, 165, with lightness doing all the
-   work. The hex beside each line is that OKLCH in sRGB, for reading.
+/* Midnight, the default: the doc's own table, verbatim. Green-cast rather than
+   blue, and declared in OKLCH the way the doc declares it, so the ramp reads as
+   what it is -- one hue, 165, with lightness doing all the work. The hex beside
+   each line is that OKLCH in sRGB, for reading.
 
-   DESIGN.md also pairs each stock with an accent -- a *lighter* green on the
-   dark ones, because a 0.52 green disappears into a 0.16 background. That
-   pairing is not a CSS rule here (an inline --brand on :root always wins, so a
-   palette that set one would make the Accent colour knob look broken); it is
-   THEME_BRAND in the script, applied when you switch palette.
+   DESIGN.md also pairs each stock with an accent, and that pairing is not a CSS
+   rule here: applyVars() writes --brand inline on :root, and a rule on body
+   beats an inherited value for every element inside body, so a palette that set
+   one would make the Accent colour knob look broken. It is THEME_BRAND in the
+   script instead.
 
-   Three tokens DESIGN.md's ramp does not name -- the second hairline, the wash
+   Three tokens the doc's ramp does not name -- the second hairline, the wash
    and the faint label -- are that ramp interpolated between background and
    card, the same relationship the other stocks use. */
 body[data-theme=midnight]{
@@ -139,6 +178,28 @@ body[data-theme=midnight]{
   --hair-c:oklch(0.31 0.014 165);   /* #2A332E  border     */
   --hair2-c:oklch(0.235 0.014 165); /* #18201C  derived    */
   --wash:oklch(0.185 0.013 165);    /* #0D1511  derived    */
+}
+
+/* Solarized: the one light stock that is not warm-neutral. Classic Solarized
+   Light -- base3 sand, base01 for text, base1 for the secondary voice -- under
+   the doc's signature blue, which is also the one accent here that is not a
+   green. Depth stays with the hairlines, as everywhere else. */
+body[data-theme=solarized]{
+  --bg:#FDF6E3; --bg-2:#EEE8D5; --bg-3:#E4DDC8;
+  --fg:#586E75; --muted:#93A1A1; --faint:#A8B3AF;
+  --hair-c:#DDD5BE; --hair2-c:#E8E1CC; --wash:#F7F0DC;
+}
+
+/* OLED: the pixels switched off, so the surface is #000 and the hairlines carry
+   the structure a lifted panel would otherwise carry -- which is why --bg-2 is
+   #0A0A0A and not the #1A1D22 an ordinary dark theme would use. --faint is
+   lighter than it looks like it should be: at 9.5px, a label that fails
+   contrast is a label that is not there. The doc's accent for this stock is a
+   neon cyan, and it is the only non-green fill in the set. */
+body[data-theme=oled]{
+  --bg:#000000; --bg-2:#0A0A0A; --bg-3:#161616;
+  --fg:#F0EFEC; --muted:#94918B; --faint:#6E6B65;
+  --hair-c:#242424; --hair2-c:#161616; --wash:#101010;
 }
 
 /* Interface scale. The design is set in px rather than rem, so scaling the
@@ -1051,7 +1112,7 @@ function renderStatus(){
 
 function renderHead(){
   const s = STATE.session||'';
-  document.title = 'Trajectory — '+s;
+  syncTitle();
   $('#crumb').textContent = '/trajectory/'+s;
   $('#h1').textContent = 'Session '+s;
   $('#smeta').innerHTML =
@@ -2024,6 +2085,10 @@ document.addEventListener('click', ev => {
     return;
   }
   if(ev.target.closest('[data-settings-open]')){ openSettings(true); return; }
+  /* The brand is the way back from a page. It is a real link to / so it reads
+     as one, but the navigation is done in-page: a full load would re-fetch the
+     whole session to show a screen that is already here. */
+  if(ev.target.closest('.logo')){ ev.preventDefault(); openPage(''); return; }
   if(ev.target.closest('[data-page="export"]')){
     openExport($('#export').hidden);
     return;
@@ -2280,19 +2345,23 @@ function syncPollTimer(){
 
 /* The accent each stock is designed around, from DESIGN.md's theme table. A
    palette is a look, and on the dark stocks part of that look is which green
-   the pressed buttons are -- the doc pairs them with a *lighter* green, because
-   a 0.52 green sinks into a 0.16 background.
+   the buttons are -- the doc pairs the dark ones with a *lighter* accent,
+   because a 0.52 green sinks into a 0.16 background and a 0.72 one disappears
+   into a 0.97 one.
 
    They are hex rather than the OKLCH the doc declares them in because the
    control for this setting is an <input type=color>, which holds hex and
-   nothing else. Ink is not in the table on purpose: DESIGN.md's pure-black
-   stock is a different theme with a cyan accent of its own, and adopting that
-   would be shipping a new theme rather than correcting this one, so the neutral
-   black keeps whatever accent you have. */
+   nothing else. `paper` carries this dashboard's own accent, which is also the
+   declared default of the Accent colour setting below -- so a config that has
+   never moved that knob still reads as "a stock accent, not a choice" and is
+   free to be adopted. */
 const THEME_BRAND = {
-  paper:    '#2F6F4E',   /* light            oklch(0.52 0.15 152) */
-  green:    '#259F56',   /* dark, mid green  oklch(0.62 0.15 152) */
-  midnight: '#35C177',   /* DESIGN.md        oklch(0.72 0.16 155) */
+  light:     '#008039',   /* doc light            oklch(0.52 0.15 152) */
+  dark:      '#259F56',   /* doc dark, mid green  oklch(0.62 0.15 152) */
+  midnight:  '#35C177',   /* doc midnight         oklch(0.72 0.16 155) */
+  solarized: '#268BD2',   /* doc solarized, signature blue          */
+  oled:      '#22D3EE',   /* doc oled, neon cyan                    */
+  paper:     '#2F6F4E',   /* this dashboard's own deep green        */
 };
 
 /* What accent this palette wants, given the one you already have. A palette
@@ -2310,15 +2379,16 @@ function themeBrand(theme, prevTheme){
   return cur === String(from) ? next : null;
 }
 
-/* The boot half of the rule below: a config saved before a palette carried its
-   accent, or while a different palette was selected, would come up wearing the
-   wrong green. */
-function syncThemeBrand(){
-  const next = themeBrand(CFG.theme, null);
-  if(next == null) return;
-  CFG.brand = next;
+/* The one write the page makes on its own behalf: a config whose accent
+   predates the accent rule is brought up to date at boot, so that what the file
+   says and what the page shows do not drift apart. A retired palette name never
+   reaches here -- the server maps it on load (see CONFIG_SPEC's `retired`). */
+function reconcileCfg(){
+  const accent = themeBrand(CFG.theme, null);
+  if(accent == null) return;
+  CFG.brand = accent;
   markRow('brand');
-  persist({brand: next}, true);
+  persist({brand: accent}, true, true);
 }
 
 /* The declarative half: values that reach the page as a value. A colour knob
@@ -2446,7 +2516,7 @@ function initFromCfg(){
     $('[data-adv]').setAttribute('aria-pressed', 'true');
   }
   renderSrcMenu();
-  syncThemeBrand();
+  reconcileCfg();
   applyCfg(null);
 }
 
@@ -2553,9 +2623,13 @@ function flashSaved(kind){
    nowhere to write, and saying "saved" there would be a lie -- hence the
    STATE.live check rather than an optimistic message. */
 let cfgWriteTimer = null;
-function persist(patch, immediate){
+function persist(patch, immediate, force){
   clearTimeout(cfgWriteTimer);
-  if(!STATE.live){ flashSaved('unsaved'); return; }
+  /* A stopped dashboard has nothing to save to, so an ordinary change is left
+     unsaved rather than shown as saved. A migration on load is not an ordinary
+     change -- it is the file being brought up to date with the screen -- and
+     the poll has not started yet, so it carries `force` and goes through. */
+  if(!STATE.live && !force){ flashSaved('unsaved'); return; }
   flashSaved('saving');
   cfgWriteTimer = setTimeout(() => {
     fetch('/api/config', {
@@ -2785,9 +2859,25 @@ function markRow(k){
 }
 
 /* Showing a page and putting it in the address bar are two different jobs.
-   showPage() only moves the DOM; openPage() records the move in history and
-   the router below replays it. Keeping them apart is what makes Back work
-   without the router and the history writing each other in a loop. */
+   showPage() only moves the DOM and names the document; openPage() records the
+   move in history and the router below replays it. Keeping them apart is what
+   makes Back work without the router and the history writing each other in a
+   loop. */
+function PAGE_URL(name){
+  return name === 'settings' ? '/settings' : name === 'export' ? '/extract' : '/';
+}
+
+/* One owner for the document title. The session render used to set it on every
+   render, which is fine until a page of its own is open -- then the tab, the
+   bookmark and the history entry all say a session name the page is not
+   showing. */
+function syncTitle(){
+  const p = pageName();
+  document.title = p === 'settings' ? 'Settings · Trajectory'
+                 : p === 'export'   ? 'Extract · Trajectory'
+                 : 'Trajectory — ' + (STATE.session || '');
+}
+
 function showPage(name){
   const s = $('#settings'), e = $('#export');
   if(!s || !e) return;
@@ -2799,6 +2889,7 @@ function showPage(name){
   if(sb) sb.setAttribute('aria-pressed', String(name === 'settings'));
   const eb = $('[data-page="export"]');
   if(eb) eb.setAttribute('aria-pressed', String(name === 'export'));
+  syncTitle();
   if(name === 'settings'){ SETCAT = SETCAT || GROUP_ORDER[0] || ''; renderSettings(); }
   if(name === 'export') renderExport();
   /* Only ever one full-screen page at a time, and never a stale dropdown or
@@ -2815,24 +2906,29 @@ function pageName(){
 function openPage(name){
   if(pageName() === name) return;
   showPage(name);
-  const want = name ? '#'+name : '#';
-  if(location.hash !== want){
+  const want = PAGE_URL(name);
+  if(location.pathname !== want){
     try{ history.pushState(null, '', want); }
-    catch(e){ location.hash = want; }   /* file:// and friends */
+    catch(e){ location.hash = name; }   /* file:// and friends */
   }
 }
 
 function openSettings(open){ openPage(open ? 'settings' : ''); }
 function openExport(open){ openPage(open ? 'export' : ''); }
 
-/* The hash is the route: a link to #export opens the Extract page, and Back
-   leaves it for the session instead of leaving the site. */
-function routeFromHash(){
+/* The path is the route. /settings and /extract are pages in their own right --
+   the server answers all three URLs with this document, so a bookmark, a
+   reload, or a shared link lands where it says it will, and Back leaves a page
+   for wherever you actually were. The hash is read too, because a static
+   `--html` file opened over file:// cannot push a path. */
+function routeNow(){
+  const p = location.pathname.replace(/\/+$/, '');
   const h = location.hash.replace(/^#/, '');
-  showPage(h === 'settings' ? 'settings' : h === 'export' ? 'export' : '');
+  showPage(p === '/settings' || h === 'settings' ? 'settings'
+         : p === '/extract'  || h === 'export'   ? 'export' : '');
 }
-window.addEventListener('popstate', routeFromHash);
-window.addEventListener('hashchange', routeFromHash);
+window.addEventListener('popstate', routeNow);
+window.addEventListener('hashchange', routeNow);
 
 /* --- the custom select -------------------------------------------------- */
 function closeCS(except){
@@ -3210,24 +3306,6 @@ function renderExport(){
   updateExportPreview();
 }
 
-function openExport(open){
-  const page = $('#export');
-  if(!page) return;
-  if(open) openSettings(false);
-  page.hidden = !open;
-  $('.shell').hidden = !!open;
-  const b = $('[data-page="export"]');
-  if(b) b.setAttribute('aria-pressed', String(!!open));
-  document.body.classList.toggle('pageopen', !!open);
-  if(open) renderExport();
-  closeCS(); tipHide();
-  if(open) window.scrollTo(0, 0);
-  const want = open ? '#export' : '#';
-  if(location.hash !== want){
-    try{ history.replaceState(null, '', want); }catch(e){ location.hash = want; }
-  }
-}
-
 function exportNow(){
   if(!STATE.session) return;
   const {body, mime, ext, name, rows} = buildExport();
@@ -3249,8 +3327,10 @@ function syncExport(){
 initFromCfg();
 apply(window.__TRAJECTORY__||{}, false);
 renderSettings();
-if(location.hash === '#settings') openSettings(true);
-else if(location.hash === '#export') openExport(true);
+/* The server renders this same document for /, /settings and /extract, so the
+   first question on load is which of them the browser asked for. showPage, not
+   openPage: the history entry is already the right one. */
+routeNow();
 if(STATE.live) syncPollTimer();
 """
 
@@ -3272,7 +3352,7 @@ PAGE = r"""<!doctype html>
 
 <header class="nav">
   <div class="nav-inner">
-    <a class="logo" href="#"><span class="dot"></span>Trajectory<sup>TM</sup></a>
+    <a class="logo" href="/"><span class="dot"></span>Trajectory<sup>TM</sup></a>
     <span class="spacer"></span>
     <span class="seg">
       <button class="pill" data-view="timeline" aria-pressed="true">Timeline</button>

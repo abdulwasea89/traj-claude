@@ -57,28 +57,34 @@ anyway — and binds to `127.0.0.1` only. Three views:
   result.
 - **Table** — every event, filterable, expandable.
 
-Plus a **Settings** page (~140 knobs, all of which change real behaviour) and an
-**Extract** page that writes the current view to JSON, Markdown, or CSV. Both are
-pages in their own right — the session's view tabs and source filter come off the
-nav while one is open, and the brand in the corner links back.
+Plus a **Settings** page (~140 knobs, all of which change real behaviour) at
+`/settings`, and an **Extract** page at `/extract` that writes the current view
+to JSON, Markdown, or CSV. Both are pages in their own right — their own address
+and their own title, the session's view tabs and source filter come off the nav
+while one is open, and Back returns you to the session rather than out of the
+dashboard. The brand in the corner links back.
 
-Four palettes, under Settings → Appearance → Palette:
+Six palettes, under Settings → Appearance → Palette. Five are `DESIGN.md`'s own
+stocks, and **midnight** — the doc's green-cast near-black — is the default:
 
 | | |
 |---|---|
-| **paper** | warm off-white, the default |
-| **ink** | true `#000000`, for an OLED panel |
-| **green** | that black, cast green |
-| **midnight** | the `DESIGN.md` palette: green-cast near-black, declared in OKLCH |
+| **midnight** | the doc's green-cast near-black, declared in OKLCH — the default |
+| **light** | warm off-white, the other end of that same ramp |
+| **dark** | warm charcoal |
+| **solarized** | the classic Solarized sand, with its signature blue |
+| **oled** | true `#000000`, neon cyan accent |
+| **paper** | this dashboard's own warm off-white |
 
 A palette brings the accent `DESIGN.md` pairs with it — a lighter green on the
-dark stocks, because a 0.52 green sinks into a 0.16 background. Pick an accent
-by hand and it survives every switch: a palette only claims the accent while it
-is still the one the last palette set. Ink is the exception and keeps whatever
-accent you have.
+dark stocks, because a 0.52 green sinks into a 0.16 background. Pick an accent by
+hand and it survives every switch: a palette claims the accent only while it is
+still the one the last palette put there. A palette name from an older build
+(`ink`, `green`) reads as the stock it became rather than resetting to paper.
 
-Its settings live in `dashboard/trajectory.config.json`, next to the script,
-created on first save. It never writes to `~/.claude/settings.json`.
+Its settings live in `dashboard/trajectory.config.json`, next to the script. It is
+written on the first change you make, or on the first page load that has a
+migration to record. It never writes to `~/.claude/settings.json`.
 
 ## Why the numbers are right
 
