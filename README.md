@@ -1,4 +1,4 @@
-# traj
+# traj-claude
 
 **Read the session log Claude Code already writes — by source, in order, in a browser.**
 
@@ -25,7 +25,8 @@ Two ways to look at it:
 
 `traj` — the abbreviation of *trajectory*, four letters, one syllable, easy to
 type on any keyboard. The project is a tool for reading a session's
-trajectory, so the name is the thing itself rather than a metaphor for it.
+trajectory, so the name is the thing itself rather than a metaphor for it. The
+repository is `traj-claude`, because that is what it reads.
 
 ## Requirements
 
