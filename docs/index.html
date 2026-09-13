@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>traj-claude — a status bar and a trajectory dashboard for Claude Code</title>
+<meta name="description" content="Two small Python tools for Claude Code: a status bar for the bottom of the terminal, and a local page that shows exactly which tokens are in your context window — reasoning, tool calls, injections, everything.">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23090F0C'/%3E%3Ccircle cx='11' cy='16' r='3.4' fill='%2335C177'/%3E%3Ccircle cx='22' cy='16' r='3.4' fill='%238A4FBF'/%3E%3C/svg%3E">
+
+<style>
+/* --- the palette ---------------------------------------------------------
+   The same six stocks the dashboard ships, declared the same way: OKLCH, one
+   hue, lightness doing the work. Copying them here rather than re-picking a
+   "website green" is the whole point -- the docs and the tool are one object,
+   and a hex that drifts between them is a hex someone has to reconcile later.
+
+   Type is the system stack on purpose. A webfont request is a request to
+   someone else's server carrying the reader's IP, which is an odd thing for a
+   page about a tool that sends nothing anywhere to make. */
+:root{
+  --bg:oklch(0.16 0.012 165);       /* #090F0C */
+  --bg-2:oklch(0.205 0.014 165);    /* #111916 */
+  --bg-3:oklch(0.26 0.016 165);     /* #1D2722 */
+  --fg:oklch(0.95 0.008 160);       /* #EAF0ED */
+  --muted:oklch(0.72 0.016 165);    /* #9CA8A2 */
+  --faint:oklch(0.65 0.016 165);    /* #83908A */
+  --brand:#35C177;
+  --hair-c:var(--fg);
+  --hair:color-mix(in oklab, var(--hair-c) 10%, transparent);
+  --hair-2:color-mix(in oklab, var(--hair-c) 5%, transparent);
+  /* The four lane colours, at the lightness a dark ground asks for. These are
+     the dashboard's own --lane-* values after the 1.38x lift it applies on the
+     dark stocks, so a bar in the docs is the bar in the tool. */
+  --lane-input:#63AEFF;
+  --lane-model:#B886F1;
+  --lane-out:#FFA565;
+  --lane-tool:#67C199;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  --serif:Georgia,"Iowan Old Style","Times New Roman",serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --wrap:1220px;
+  --rail:216px;
+}
+html[data-theme="light"]{
+  --bg:oklch(0.97 0.008 90);
+  --bg-2:oklch(0.995 0.004 90);
+  --bg-3:oklch(0.93 0.012 90);
+  --fg:oklch(0.22 0.01 90);
+  --muted:oklch(0.52 0.012 90);
+  --faint:oklch(0.53 0.012 90);
+  --brand:#008039;
+  /* The two ends of the hairline derivation are the same formula, but a 10%
+     mix of a near-black foreground is a much subtler line than a 10% mix of a
+     near-white one, so the light stock carries a little more. */
+  --hair:color-mix(in oklab, var(--fg) 14%, transparent);
+  --hair-2:color-mix(in oklab, var(--fg) 7%, transparent);
+  --lane-input:#2E6FB8;
+  --lane-model:#8A4FBF;
+  --lane-out:#B4642A;
+  --lane-tool:#2F7F5F;
+}
+
+*{box-sizing:border-box}
+/* scrollbar-width does not inherit and scrollbar-color does, so the pair has
+   to go on every element -- a root-only rule leaves every inner scroller at
+   the platform width, which is the mismatch this is here to avoid. */
+*{scrollbar-width:thin;scrollbar-color:color-mix(in oklab,var(--brand) 45%,transparent) transparent}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:color-mix(in oklab,var(--brand) 45%,transparent);
+  border-radius:999px;border:3px solid transparent;background-clip:padding-box}
+
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  margin:0;background:var(--bg);color:var(--fg);
+  font:15px/1.65 var(--sans);
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--brand);text-decoration:none}
+a:hover{text-decoration:underline}
+code,kbd,pre{font-family:var(--mono);font-size:.86em}
+code{background:var(--bg-3);padding:.12em .38em;border-radius:3px;color:var(--fg)}
+pre{
+  background:var(--bg-2);border:1px solid var(--hair);border-radius:6px;
+  padding:13px 15px;overflow:auto;line-height:1.55;margin:0 0 16px;
+}
+pre code{background:none;padding:0}
+kbd{border:1px solid var(--hair);border-bottom-width:2px;border-radius:4px;
+  padding:.1em .4em;background:var(--bg-3);font-size:.8em}
+hr{border:0;border-top:1px solid var(--hair-2);margin:34px 0}
+
+/* --- shell --------------------------------------------------------------- */
+.top{
+  position:sticky;top:0;z-index:20;background:color-mix(in oklab,var(--bg) 88%,transparent);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--hair);
+}
+.top-in{
+  max-width:var(--wrap);margin:0 auto;padding:0 24px;height:56px;
+  display:flex;align-items:center;gap:12px;
+}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.01em;color:var(--fg)}
+.brand:hover{text-decoration:none}
+.brand i{width:11px;height:11px;border-radius:50%;background:var(--brand);display:block;
+  box-shadow:0 0 0 3px color-mix(in oklab,var(--brand) 22%,transparent)}
+.brand small{color:var(--faint);font-weight:400;font-family:var(--mono);font-size:11px;
+  border:1px solid var(--hair);border-radius:3px;padding:1px 5px}
+.top nav{margin-left:auto;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.top nav a{
+  color:var(--muted);font-size:13px;padding:5px 10px;border-radius:999px;
+  border:1px solid transparent;
+}
+.top nav a:hover{color:var(--fg);background:var(--bg-3);text-decoration:none}
+.top nav a.gh{border-color:var(--hair);color:var(--fg)}
+.tog{
+  margin-left:6px;background:none;border:1px solid var(--hair);border-radius:999px;
+  color:var(--muted);font:13px var(--sans);padding:5px 11px;cursor:pointer;
+}
+.tog:hover{color:var(--fg);background:var(--bg-3)}
+
+.shell{max-width:var(--wrap);margin:0 auto;padding:0 24px;display:grid;
+  grid-template-columns:var(--rail) minmax(0,1fr);gap:56px;align-items:start}
+.rail{position:sticky;top:56px;padding:36px 0 60px;max-height:calc(100vh - 56px);overflow:auto}
+.rail h4{font:600 10.5px/1 var(--sans);letter-spacing:.11em;text-transform:uppercase;
+  color:var(--faint);margin:22px 0 8px}
+.rail h4:first-child{margin-top:0}
+.rail a{display:block;color:var(--muted);font-size:13.5px;padding:4.5px 0 4.5px 11px;
+  border-left:2px solid var(--hair-2)}
+.rail a:hover{color:var(--fg);text-decoration:none;border-left-color:var(--muted)}
+.rail a.on{color:var(--fg);border-left-color:var(--brand)}
+main{padding:36px 0 90px;min-width:0}
+
+/* --- type ---------------------------------------------------------------- */
+.hero{padding:26px 0 30px;border-bottom:1px solid var(--hair-2)}
+.hero h1{
+  font-family:var(--serif);font-weight:400;font-size:clamp(34px,5vw,50px);
+  line-height:1.1;letter-spacing:-.02em;margin:0 0 14px;
+}
+.hero p.lede{font-size:18px;line-height:1.6;color:var(--muted);max-width:62ch;margin:0 0 22px}
+.hero p.lede strong{color:var(--fg);font-weight:600}
+.btns{display:flex;gap:9px;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:6px;
+  font-size:14px;font-weight:500;border:1px solid var(--hair);color:var(--fg);
+  background:var(--bg-2);
+}
+.btn:hover{text-decoration:none;background:var(--bg-3)}
+/* The accent is a light green on midnight and a deep one on light, so the ink
+   on it flips with the stock. Measured, not guessed: black on #35C177 is
+   9.05:1 and white on #008039 is 5.06:1, and the other way round is 2.32 and
+   4.15. Two stocks, so two rules rather than a relative-colour expression. */
+.btn.pri{background:var(--brand);border-color:var(--brand);color:#0A1410}
+html[data-theme="light"] .btn.pri{color:#fff}
+.btn.pri:hover{filter:brightness(1.08)}
+
+h2{
+  font-family:var(--serif);font-weight:400;font-size:30px;line-height:1.2;
+  letter-spacing:-.015em;margin:56px 0 6px;scroll-margin-top:72px;
+}
+h2 .n{color:var(--faint);font-family:var(--mono);font-size:15px;margin-right:11px;
+  vertical-align:3px}
+h3{font-size:16px;font-weight:600;margin:34px 0 8px;scroll-margin-top:72px}
+h4.sub{font:600 11px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);margin:26px 0 9px}
+h2+p,h3+p{margin-top:0}
+p{margin:0 0 15px;max-width:74ch}
+ul,ol{margin:0 0 15px;padding-left:22px;max-width:74ch}
+li{margin:5px 0}
+li>ul,li>ol{margin:5px 0}
+.eyebrow{font:600 11px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;
+  color:var(--brand);margin:0 0 10px}
+.lead{color:var(--muted);font-size:16.5px;max-width:70ch}
+
+/* --- pieces -------------------------------------------------------------- */
+.panel{background:var(--bg-2);border:1px solid var(--hair);border-radius:8px;
+  padding:18px 20px;margin:0 0 18px}
+.panel.tight{padding:14px 17px}
+.panel h4{margin-top:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;
+  margin:0 0 18px}
+.grid2 .panel{margin:0}
+.note{border-left:2px solid var(--brand);padding:2px 0 2px 15px;margin:0 0 18px;
+  color:var(--muted);max-width:74ch}
+.note strong{color:var(--fg)}
+.note.warn{border-left-color:var(--lane-out)}
+
+figure{margin:20px 0 24px}
+figure img{width:100%;height:auto;display:block;border:1px solid var(--hair);
+  border-radius:8px;background:var(--bg-2)}
+figcaption{color:var(--faint);font-size:12.5px;margin-top:9px;max-width:74ch}
+/* Two shots of the same thing, side by side. auto-fit rather than a fixed
+   1fr 1fr: the shots are 1600px wide and in a 1220px column a pair is only
+   ~440px each, so on a narrow screen stacking them is the only readable one. */
+.duo{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:18px;margin:20px 0 24px}
+.duo figure{margin:0}
+.duo figcaption{font-size:12px}
+
+.bar{
+  background:var(--bg-2);border:1px solid var(--hair);border-radius:6px;
+  padding:11px 14px;overflow-x:auto;white-space:pre;
+  font-family:var(--mono);font-size:12.5px;color:var(--fg);margin:0 0 18px;
+}
+.bar b{color:var(--lane-tool);font-weight:400}
+.bar i{color:var(--lane-model);font-style:normal}
+
+table{width:100%;border-collapse:collapse;margin:0 0 20px;font-size:14px}
+th{text-align:left;font:600 10.5px/1 var(--sans);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint);padding:0 12px 8px 0;
+  border-bottom:1px solid var(--hair)}
+td{padding:8px 12px 8px 0;border-bottom:1px solid var(--hair-2);vertical-align:top;
+  color:var(--muted)}
+td:first-child{color:var(--fg)}
+td code{font-size:12.5px;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+
+.lanes{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 18px}
+.lanes span{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted)}
+.lanes i{width:22px;height:9px;border-radius:2px;display:block}
+.lanes .input i{background:var(--lane-input)}
+.lanes .model i{background:var(--lane-model)}
+.lanes .out i{background:var(--lane-out)}
+.lanes .tool i{background:var(--lane-tool)}
+.lanes em{font-style:normal;color:var(--faint)}
+
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;
+  margin:0 0 18px}
+/* Each card is a fixed palette, so its text colours are fixed too. Letting them
+   inherit the *page* theme's --fg/--faint would put light-stock grey on a
+   near-black card -- which is exactly the 2.95:1 this started as. The four
+   values come in inline as --c-*; the muted ones are the lightest step of that
+   palette's own foreground that still clears AA on that palette's card. */
+.sw{border:1px solid var(--hair);border-radius:7px;overflow:hidden;background:var(--c-bg)}
+.sw .chip{height:44px;background:var(--c-ac)}
+.sw .m{padding:9px 11px}
+.sw .m b{display:block;font-size:13.5px;font-weight:600;margin-bottom:2px;color:var(--c-fg)}
+.sw .m span{display:block;font-size:12px;line-height:1.45;color:var(--c-mut)}
+.sw .m code{display:block;margin-top:6px;background:none;padding:0;
+  font-size:11.5px;color:var(--c-mut)}
+
+.steps{counter-reset:s;list-style:none;padding:0;margin:0 0 18px}
+.steps>li{counter-increment:s;position:relative;padding-left:36px;margin:0 0 14px;
+  max-width:74ch}
+.steps>li::before{
+  content:counter(s);position:absolute;left:0;top:1px;width:22px;height:22px;
+  border-radius:50%;background:var(--bg-3);border:1px solid var(--hair);
+  color:var(--muted);font:11px/21px var(--mono);text-align:center;
+}
+
+footer{border-top:1px solid var(--hair);margin-top:64px;padding-top:22px;
+  color:var(--faint);font-size:13px;display:flex;gap:14px;flex-wrap:wrap}
+footer a{color:var(--muted)}
+footer .sp{margin-left:auto}
+
+/* The fold-out trigger is in the markup and hidden here rather than being
+   created by script when the page happens to load narrow: a phone that is
+   rotated, or a desktop window dragged to half width, would otherwise have no
+   Contents control at all. */
+#railbtn{display:none}
+@media (max-width:900px){
+  .shell{grid-template-columns:1fr;gap:0}
+  .rail{position:static;max-height:none;padding:22px 0 0;
+    border-bottom:1px solid var(--hair-2)}
+  #railbtn{display:block;margin:0 0 4px}
+  .rail .railbody{display:none}
+  .rail.open .railbody{display:block;padding-bottom:14px}
+  .rail h4{margin-top:14px}
+  .top nav a:not(.gh){display:none}
+  main{padding-top:24px}
+  h2{margin-top:44px}
+}
+@media print{
+  .top,.rail,.btns{display:none}
+  .shell{display:block;max-width:none}
+  body{background:#fff;color:#000}
+  figure img{border:1px solid #ccc}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#top"><i></i>traj-claude <small>MIT</small></a>
+    <nav>
+      <a href="#statusline">Status bar</a>
+      <a href="#dashboard">Dashboard</a>
+      <a href="#advanced">Advanced</a>
+      <a href="#collaboration">Contributing</a>
+      <a class="gh" href="https://github.com/abdulwasea89/traj-claude">GitHub ↗</a>
+      <button class="tog" id="tog" aria-label="Switch palette">◐ Light</button>
+    </nav>
+  </div>
+</header>
+
+<div class="shell" id="top">
+
+  <aside class="rail" id="rail">
+    <button class="tog" id="railbtn">Contents ▾</button>
+    <div class="railbody">
+      <h4>Getting started</h4>
+      <a href="#what">What this is</a>
+      <a href="#install">Install</a>
+      <h4>The two tools</h4>
+      <a href="#statusline">1 · The status bar</a>
+      <a href="#dashboard">2 · The dashboard</a>
+      <a href="#views">The five views</a>
+      <h4>Reference</h4>
+      <a href="#numbers">Why the numbers are right</a>
+      <a href="#palettes">Palettes</a>
+      <a href="#config">The config file</a>
+      <a href="#env">Environment variables</a>
+      <a href="#cli">Command line</a>
+      <a href="#advanced">Advanced</a>
+      <a href="#trouble">Troubleshooting</a>
+      <h4>Project</h4>
+      <a href="#collaboration">Collaborating</a>
+      <a href="#licence">Licence</a>
+    </div>
+  </aside>
+
+  <main>
+
+    <div class="hero">
+      <p class="eyebrow">Python 3.8+ · no dependencies · Linux, macOS, Windows</p>
+      <h1>See exactly what Claude Code<br>is putting in your context window.</h1>
+      <p class="lede">
+        Two small tools. A <strong>status bar</strong> for the bottom of your
+        terminal, and a <strong>local page</strong> that reads the session log
+        Claude Code already writes and shows you every token in the window —
+        reasoning, tool calls, injections, system prompt — as a timeline, a
+        flow, or a table.
+      </p>
+      <div class="btns">
+        <a class="btn pri" href="#install">Install in two commands</a>
+        <a class="btn" href="#dashboard">See the dashboard</a>
+        <a class="btn" href="https://github.com/abdulwasea89/traj-claude">Source ↗</a>
+      </div>
+    </div>
+
+    <h2 id="what"><span class="n">§</span>What this is</h2>
+    <p class="lead">
+      Claude Code writes an append-only transcript of every session to
+      <code>~/.claude/projects/&lt;project&gt;/&lt;session&gt;.jsonl</code>. It
+      never shows you that file. These two tools read it.
+    </p>
+
+    <div class="grid2">
+      <div class="panel">
+        <h4>statusline/</h4>
+        <p style="margin:0;color:var(--muted)">
+          One row at the bottom of Claude Code: model, context bar, percent
+          used, cumulative tokens in and out, message count, session cost.
+          Renders in a few milliseconds, on every prompt.
+        </p>
+      </div>
+      <div class="panel">
+        <h4>dashboard/</h4>
+        <p style="margin:0;color:var(--muted)">
+          A local web page on <code>127.0.0.1</code> that attributes every token
+          in the window to a source, places each one on the wall clock, and
+          lets you filter, inspect and export the lot.
+        </p>
+      </div>
+    </div>
+
+    <p>
+      Neither one sends your data anywhere. There is no telemetry, no account,
+      no network call. The dashboard binds to loopback only. The only thing
+      either tool writes is its own cache and the dashboard's config file, both
+      of which stay on your machine.
+    </p>
+
+    <div class="note warn">
+      <strong>Work in progress.</strong> The status line is finished and in
+      daily use. The dashboard runs and is usable but is still changing — there
+      is no packaging and no test suite yet. Everything documented here works
+      today.
+    </div>
+
+    <h2 id="install"><span class="n">§</span>Install</h2>
+    <p>
+      Clone the repository. Nothing to <code>pip install</code>; both tools are
+      standard-library Python 3.8 or newer.
+    </p>
+<pre><code>git clone https://github.com/abdulwasea89/traj-claude.git
+cd traj-claude</code></pre>
+
+    <ol class="steps">
+      <li>
+        <strong>Install the status bar.</strong>
+<pre><code>cd statusline &amp;&amp; python3 install.py</code></pre>
+        <span style="color:var(--muted)">On Windows, <code>python</code> instead
+        of <code>python3</code>. Then restart Claude Code.</span>
+      </li>
+      <li>
+        <strong>Start the dashboard.</strong>
+<pre><code>cd ../dashboard &amp;&amp; python3 trajectory.py</code></pre>
+        <span style="color:var(--muted)">It starts a local server and prints
+        the address — <code>http://127.0.0.1:8788</code> unless you have set
+        another port.</span>
+      </li>
+      <li>
+        <strong>Open the address.</strong> Stop the server from the page, or
+        with the command <code>trajectory.py</code> prints on startup.
+      </li>
+    </ol>
+
+    <h2 id="statusline"><span class="n">1</span>The status bar</h2>
+    <p class="lead">
+      The whole thing fits in the row Claude Code already reserves at the
+      bottom of the terminal.
+    </p>
+
+    <div class="bar">deepseek-v4-flash │ scripts │ <b>█████████░░░</b> │ 77% │ ctx 153.8k/200.0k │ ↑ in 97.77M │ ↓ out 614.7k │ Σ 3.47b │ 1018 msg │ $199.22</div>
+
+    <table>
+      <thead><tr><th>Field</th><th>What it is</th></tr></thead>
+      <tbody>
+        <tr><td><code>deepseek-v4-flash</code></td><td>The model serving this session.</td></tr>
+        <tr><td><code>scripts</code></td><td>The project directory you are in.</td></tr>
+        <tr><td><code>█████████░░░</code></td><td>Context window used. The colour shifts green → yellow → orange → red as it fills.</td></tr>
+        <tr><td><code>77%</code></td><td>The same thing as a number.</td></tr>
+        <tr><td><code>ctx 153.8k/200.0k</code></td><td>Tokens currently in the window, over your configured limit.</td></tr>
+        <tr><td><code>↑ in 97.77M</code></td><td><strong>Cumulative</strong> input for the session: fresh input + cache reads + cache writes.</td></tr>
+        <tr><td><code>↓ out 614.7k</code></td><td>Cumulative output tokens this session.</td></tr>
+        <tr><td><code>Σ 3.47b</code></td><td>All-time tokens across every session, from Claude Code's own <code>stats-cache.json</code>.</td></tr>
+        <tr><td><code>1018 msg</code></td><td>Your prompts plus the model's replies, this session.</td></tr>
+        <tr><td><code>$199.22</code></td><td>Derived session cost — shown only when you supply rates. Never guessed.</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      Fields drop out rather than showing a placeholder when they are not
+      available. With no transcript yet you get the bar, <code>0%</code>, and
+      <code>no transcript yet</code>.
+    </p>
+
+    <h3>What the installer does to your settings</h3>
+    <p>
+      Editing a file Claude Code owns deserves specifics, so:
+    </p>
+    <ul>
+      <li>It backs the file up first, as <code>settings.json.bak-&lt;timestamp&gt;</code>, next to the original.</li>
+      <li>It sets <strong>exactly one key</strong> — <code>statusLine</code>. Your <code>env</code>, <code>permissions</code>, <code>hooks</code>, <code>model</code>, <code>theme</code> and everything else are read, kept, and written back.</li>
+      <li>It <strong>never prints your <code>env</code> block</strong>. For a lot of people that is where a plaintext API token lives, and a tool that echoes it into a terminal has leaked it into your scrollback.</li>
+      <li>If <code>settings.json</code> is not valid JSON it <strong>refuses to write</strong> and says why. A settings file broken by a helpful installer is a much worse problem than a missing status line.</li>
+    </ul>
+<pre><code>python3 install.py --dry-run       # show what would change, write nothing
+python3 install.py --uninstall     # remove the statusLine entry
+python3 install.py --python /usr/bin/python3.12</code></pre>
+
+    <h2 id="dashboard"><span class="n">2</span>The trajectory dashboard</h2>
+    <p class="lead">
+      A local page over the transcript. It answers the question the transcript
+      makes surprisingly hard: <em>what is actually in my context window, and
+      when did it get there?</em>
+    </p>
+
+<pre><code>cd dashboard
+python3 trajectory.py            # start it and open the browser
+python3 trajectory.py serve      # the same server, without opening a browser
+python3 trajectory.py --text     # a report in the terminal instead</code></pre>
+
+    <figure>
+      <img src="img/trajectory.png" width="1600" height="918"
+           alt="The dashboard's Timeline view: a source-colour legend, then one row per turn, each split into four lanes — Input, Model, Output and Tools — with bars placed by wall-clock time.">
+      <figcaption>
+        The event stream. One row per turn, one bar per <em>measured span</em>
+        between two records, placed by wall-clock time. Each turn is split into
+        four lanes, so the width of a turn can be read as: how much of it was
+        waiting on the model, how much was it thinking, how much was it writing,
+        and how much was tools running.
+      </figcaption>
+    </figure>
+
+    <div class="lanes">
+      <span class="input"><i></i>Input <em>waiting on the model</em></span>
+      <span class="model"><i></i>Model <em>reasoning</em></span>
+      <span class="out"><i></i>Output <em>writing the answer</em></span>
+      <span class="tool"><i></i>Tools <em>running</em></span>
+    </div>
+
+    <p>
+      The lanes are the point of the view. A turn that took four minutes and a
+      turn that took four minutes and nineteen tool calls look identical in a
+      transcript and completely different here.
+    </p>
+
+    <figure>
+      <img src="img/overview.png" width="1600" height="918"
+           alt="The top of the dashboard: a session list, the current session's header with record counts, and a stacked bar breaking the context window down by source.">
+      <figcaption>
+        The top of the page. Sessions on the left, the session header in the
+        middle, and the context window broken down by source underneath it —
+        every token in the window has an owner.
+      </figcaption>
+    </figure>
+
+    <figure>
+      <img src="img/sources.png" width="1600" height="918"
+           alt="A grid of tiles, one per source, each showing a token count, an event count, a percentage, and a bar in that source's colour.">
+      <figcaption>
+        One tile per source: tokens, events, and share of the window. Clicking
+        a tile filters every view to it.
+      </figcaption>
+    </figure>
+
+    <h2 id="views"><span class="n">§</span>The five views</h2>
+    <p>
+      The tab strip in the middle of the nav switches between the session
+      views; <strong>Extract</strong> and <strong>Settings</strong> are pages in
+      their own right, with their own address and their own title.
+    </p>
+
+    <h3>Timeline</h3>
+    <p>
+      The event stream above, plus the per-source breakdown. Hover any bar for
+      a summary of the span it covers; click one to open the full record in the
+      inspect panel.
+    </p>
+
+    <h3>Flow</h3>
+    <p>
+      The session as nested steps, with each tool call paired to the result it
+      produced. Subagent work nests under the call that spawned it.
+    </p>
+    <figure>
+      <img src="img/flow.png" width="1600" height="918"
+           alt="The Flow view: a nested list of turns and steps with tool calls paired to their results.">
+    </figure>
+
+    <h3>Table</h3>
+    <p>
+      Every event, in order, one row each. Filterable, sortable, expandable —
+      for when you want to find one specific thing rather than a shape.
+    </p>
+    <figure>
+      <img src="img/table.png" width="1600" height="918"
+           alt="The Table view: one row per event with timestamp, source, tokens and a preview of the content.">
+    </figure>
+
+    <h3>Settings</h3>
+    <p>
+      Around 140 knobs across appearance, source colours, timeline, flow,
+      table, filters, accounting and the server. Every one of them changes real
+      behaviour — there are no cosmetic toggles.
+    </p>
+    <div class="duo">
+      <figure>
+        <img src="img/settings.png" width="1600" height="918"
+             alt="The Settings page on midnight: grouped rows of labelled controls with reset and back buttons.">
+        <figcaption>Settings on <strong>midnight</strong>.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/settings-light.png" width="1600" height="918"
+             alt="The same Settings page on the light stock.">
+        <figcaption>The same page on <strong>light</strong> — the palette reaches
+        every control, not just the background.</figcaption>
+      </figure>
+    </div>
+
+    <h3>Extract</h3>
+    <p>
+      Writes what you are looking at to JSON, Markdown or CSV — the current
+      view, the current filters, the current session. It is a real route, so
+      you can link someone straight to it.
+    </p>
+    <figure>
+      <img src="img/extract.png" width="1600" height="918"
+           alt="The Extract page: format choices, scope, and a preview of the output with a download button.">
+    </figure>
+
+    <h2 id="numbers"><span class="n">§</span>Why the numbers are right</h2>
+    <p>
+      Claude Code's transcript writes each assistant message roughly
+      <strong>2.5×</strong> as streaming snapshots, each carrying a
+      byte-identical copy of the same <code>usage</code> object. Summing every
+      record therefore inflates your totals by that factor — which is where a
+      lot of "I used 3 million tokens?" comes from.
+    </p>
+    <p>
+      Both tools deduplicate by <code>message.id</code> (user records by
+      <code>uuid</code>), so the numbers are exact counts of <em>distinct
+      messages</em>, not of transcript writes. Re-counting a long transcript on
+      every render would be slow, so the status line keeps a byte-offset cache
+      per session and only reads what was appended since last time. Streaming
+      duplicates are consecutive, so a bounded window of recent ids catches
+      them without persisting every id a session has ever emitted.
+    </p>
+    <p>
+      Page-level sizes are a different matter: characters, not tokens. Those
+      are estimated from character counts so that sources are comparable with
+      each other, and the dashboard says so where it shows them. The session's
+      real billed usage is reported separately and is never an estimate.
+    </p>
+
+    <h2 id="palettes"><span class="n">§</span>Palettes</h2>
+    <p>
+      Six stocks, under <strong>Settings → Appearance → Palette</strong>.
+      <strong>midnight</strong> is the default: a green-cast near-black,
+      declared in OKLCH so the ramp reads as what it is — one hue, lightness
+      doing all the work.
+    </p>
+
+    <div class="swatches">
+      <div class="sw" style="--c-bg:#090F0C;--c-ac:#35C177;--c-fg:#EAF0ED;--c-mut:#868D8A">
+        <div class="chip"></div>
+        <div class="m"><b>midnight</b><span>Green-cast near-black. The default.</span><code>#090F0C · #35C177</code></div>
+      </div>
+      <div class="sw" style="--c-bg:#171612;--c-ac:#259F56;--c-fg:#EDEBE7;--c-mut:#94928E">
+        <div class="chip"></div>
+        <div class="m"><b>dark</b><span>Warm charcoal, stepped up off midnight.</span><code>#171612 · #259F56</code></div>
+      </div>
+      <div class="sw" style="--c-bg:#000000;--c-ac:#22D3EE;--c-fg:#F0EFEC;--c-mut:#848382">
+        <div class="chip"></div>
+        <div class="m"><b>oled</b><span>True black, neon cyan accent.</span><code>#000000 · #22D3EE</code></div>
+      </div>
+      <div class="sw" style="--c-bg:#F7F5EF;--c-ac:#008039;--c-fg:#1C1A15;--c-mut:#6B6965">
+        <div class="chip"></div>
+        <div class="m"><b>light</b><span>Warm off-white, the other end of midnight's ramp.</span><code>#F7F5EF · #008039</code></div>
+      </div>
+      <div class="sw" style="--c-bg:#FDF6E3;--c-ac:#268BD2;--c-fg:#586E75;--c-mut:#586E75">
+        <div class="chip"></div>
+        <div class="m"><b>solarized</b><span>Classic Solarized sand, with its signature blue.</span><code>#FDF6E3 · #268BD2</code></div>
+      </div>
+      <div class="sw" style="--c-bg:#F7F5F2;--c-ac:#2F6F4E;--c-fg:#1A1917;--c-mut:#6C6C6B">
+        <div class="chip"></div>
+        <div class="m"><b>paper</b><span>The dashboard's own warm off-white.</span><code>#F7F5F2 · #2F6F4E</code></div>
+      </div>
+    </div>
+
+    <div class="duo">
+      <figure>
+        <img src="img/light.png" width="1600" height="918"
+             alt="The event stream on the light stock: the same four lanes in the same order, on a warm off-white ground.">
+        <figcaption>The same session on <strong>light</strong>.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/solarized.png" width="1600" height="918"
+             alt="The event stream on the Solarized stock: the same four lanes on Solarized's sand ground, under its signature blue.">
+        <figcaption>…and on <strong>solarized</strong>, the one stock that is
+        not a green.</figcaption>
+      </figure>
+    </div>
+
+    <h3>A palette brings its accent with it</h3>
+    <p>
+      Each stock is paired with an accent: a lighter green on the dark stocks,
+      because a 0.52 green sinks into a 0.16 background. Pick an accent by hand
+      in Settings and it survives every palette switch — a palette claims the
+      accent only while it is still the one the last palette put there. A
+      palette name from an older build (<code>ink</code>, <code>green</code>)
+      reads as the stock it became rather than resetting to paper.
+    </p>
+
+    <h3>Contrast</h3>
+    <p>
+      Text clears AA (4.5:1) on <strong>light, dark, midnight and oled</strong>.
+      The small voices are what that is measured against — the 9.5px labels,
+      the timestamps, the <code>--faint</code> ramp — and three stocks needed
+      work to get there: midnight's and dark's <code>--faint</code> were under
+      4.5:1, and oled's ramp was one step too light.
+    </p>
+    <p>
+      <strong>paper</strong> is left exactly as it was, so its
+      <code>--faint</code> still measures 2.8:1. <strong>solarized</strong> is
+      the one palette that cannot get there without ceasing to be Solarized:
+      base2 is only 1.13:1 from base3, so nothing clears AA on a base2 card.
+      Its surfaces therefore stay on Solarized's ramp and lift toward the sand
+      rather than away from it, and its two secondary voices are read off
+      Solarized's own blue-grey hue at the lightest steps that do clear. Its
+      signature blue is left alone, so it reads about 3.2:1 as 10px text.
+    </p>
+
+    <h3>Colours you pick are lifted, not replaced</h3>
+    <p>
+      A source colour is a saved setting, and its default was picked against a
+      light ground. So the page never draws a source colour raw: it draws that
+      colour at the lightness the current stock asks for — same hue, same
+      chroma, lifted 1.38×, which is the ratio the design system itself uses
+      between a stock's accent and its dark-stock version. A bar, a dot, a
+      table rail and a label that speaks in that colour are all one value, so a
+      colour you pick in Settings moves all of them. The three light stocks
+      draw your settings' exact values.
+    </p>
+
+    <h3>Hairlines, and the scrollbars</h3>
+    <p>
+      Hairlines are not a grey at all: they are the stock's foreground at 10%
+      and 5%, so they read as a line rather than as white on black.
+      <strong>Hairline strength</strong> scales them, 100 being the design's
+      10%, 0 removing every line.
+    </p>
+    <p>
+      Scrollbars come from the palette too — thin, the stock's accent at 45%,
+      on a transparent track that lets the panel show through. It is the
+      standard <code>scrollbar-width</code> / <code>scrollbar-color</code> pair
+      doing the work rather than <code>::-webkit-scrollbar</code>, because that
+      is what actually renders; the pseudo-elements are kept for older Blink,
+      which knows only those.
+    </p>
+
+    <h2 id="config"><span class="n">§</span>The config file</h2>
+    <p>
+      The dashboard's settings live in <code>dashboard/trajectory.config.json</code>,
+      next to the script. It is written on the first change you make, or on the
+      first page load that has a migration to record. It is created with your
+      user's permissions and is not committed.
+    </p>
+    <div class="note">
+      <strong>It never writes to <code>~/.claude/settings.json</code>.</strong>
+      That file belongs to Claude Code. The only tool here that touches it is
+      the status line's installer, and it touches exactly one key.
+    </div>
+    <p>
+      Delete the file and the dashboard comes back up on its defaults. Every
+      knob in Settings is in it, keyed by the same name the page shows.
+    </p>
+
+    <h2 id="env"><span class="n">§</span>Environment variables</h2>
+    <p>
+      Both tools read <code>CLAUDE_CONFIG_DIR</code> and fall back to
+      <code>~/.claude</code>. The status line reads these; under Claude Code
+      the reliable place to set them is the <code>env</code> block of
+      <code>settings.json</code>.
+    </p>
+<pre><code>{
+  "env": {
+    "CLAUDE_BAR_WIDTH": "16",
+    "CLAUDE_CONTEXT_LIMIT": "1000000",
+    "CLAUDE_COST_IN": "0.55",
+    "CLAUDE_COST_OUT": "2.19"
+  }
+}</code></pre>
+
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>CLAUDE_CONTEXT_LIMIT</code></td><td><code>200000</code></td><td>Input context window in tokens. <strong>Set this to your model's real window</strong> or the bar and the percentage are both wrong.</td></tr>
+        <tr><td><code>CLAUDE_BAR_WIDTH</code></td><td><code>12</code></td><td>Width of the progress bar, in cells.</td></tr>
+        <tr><td><code>CLAUDE_SHOW_PROJECT</code></td><td><code>1</code></td><td><code>0</code> hides the project name.</td></tr>
+        <tr><td><code>CLAUDE_EXACT</code></td><td><code>0</code></td><td><code>1</code> prints <code>3,431,260</code> instead of <code>3.43M</code>.</td></tr>
+        <tr><td><code>CLAUDE_COST_IN</code></td><td>—</td><td>USD per 1M input tokens.</td></tr>
+        <tr><td><code>CLAUDE_COST_OUT</code></td><td>—</td><td>USD per 1M output tokens.</td></tr>
+        <tr><td><code>CLAUDE_COST_CACHE_READ</code></td><td>—</td><td>USD per 1M cache-read tokens.</td></tr>
+        <tr><td><code>CLAUDE_COST_CACHE_WRITE</code></td><td>—</td><td>USD per 1M cache-write tokens.</td></tr>
+        <tr><td><code>CLAUDE_QUOTA_PER_USD</code></td><td><code>500000</code></td><td>Quota units per dollar, for gateways that report cost that way.</td></tr>
+        <tr><td><code>CLAUDE_STATUSLINE_CACHE</code></td><td><code>~/.cache/claude-statusline</code></td><td>Where the scan cache lives.</td></tr>
+        <tr><td><code>CLAUDE_CONFIG_DIR</code></td><td><code>~/.claude</code></td><td>Claude Code's directory, if you have moved it.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Cost is only shown when you supply at least one rate. Guessing a price
+      and printing it in dollars would be worse than printing nothing.
+    </p>
+
+    <h2 id="cli"><span class="n">§</span>Command line</h2>
+    <p>
+      <code>trajectory.py</code> with no arguments starts the dashboard and
+      opens it. Everything else is a flag on the same script.
+    </p>
+    <table>
+      <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>trajectory.py</code></td><td>Start the server and open the browser. This is the default.</td></tr>
+        <tr><td><code>trajectory.py serve</code></td><td>Start the server without opening a browser.</td></tr>
+        <tr><td><code>trajectory.py --port 9000</code></td><td>Serve on a different port.</td></tr>
+        <tr><td><code>trajectory.py --text</code></td><td>The terminal report instead of the page: a source summary, then the events in order.</td></tr>
+        <tr><td><code>trajectory.py de2b7ace</code></td><td>A specific session, by id or id-prefix.</td></tr>
+        <tr><td><code>trajectory.py --all</code></td><td>Every session transcript on disk.</td></tr>
+        <tr><td><code>trajectory.py --limit 100</code></td><td>More events in the text report (default 30).</td></tr>
+        <tr><td><code>trajectory.py --source reasoning</code></td><td>Only one source, in the text report.</td></tr>
+        <tr><td><code>trajectory.py --html --out r.html</code></td><td>Write a static snapshot — one file, no server, no live updates.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="advanced"><span class="n">§</span>Advanced</h2>
+
+    <h3>Running it against a different Claude Code directory</h3>
+    <p>
+      Both tools read <code>CLAUDE_CONFIG_DIR</code>. Point it at a copied
+      directory and you can analyse a transcript from another machine, or a
+      backup, without touching your own:
+    </p>
+<pre><code>CLAUDE_CONFIG_DIR=/mnt/backup/claude python3 trajectory.py --all</code></pre>
+
+    <h3>A static snapshot for a report or a bug</h3>
+    <p>
+      <code>--html</code> renders the page to a single self-contained file. It
+      has no live updates and no server, which is exactly what you want when
+      you are attaching it to an issue rather than watching it.
+    </p>
+<pre><code>python3 trajectory.py --html --out session.html</code></pre>
+
+    <h3>Filters survive the view</h3>
+    <p>
+      The filter bar above the event stream is shared by every view. Filter to
+      one source, one tool, a token floor, or a text match, then switch between
+      Timeline, Flow and Table — the filter follows you, and the count beside
+      the filter bar always says how many events are in view. Extract writes
+      the filtered set, not the whole session.
+    </p>
+
+    <h3>The server</h3>
+    <p>
+      Under <strong>Settings → Server</strong> are four things, and one of them
+      is worth reading twice:
+    </p>
+    <table>
+      <thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>Port</td><td><code>8788</code></td><td>What <code>serve</code> binds on.</td></tr>
+        <tr><td>Bind address</td><td><code>127.0.0.1</code></td><td>Setting this to <code>0.0.0.0</code> exposes the session log — your prompts, your code, your file paths — to everyone on your local network. Loopback is the default for a reason.</td></tr>
+        <tr><td>Open a browser on launch</td><td>off</td><td>Whether <code>serve</code> opens your default browser for you.</td></tr>
+        <tr><td>Log requests</td><td>off</td><td>Print every request to <code>serve.log</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Where it stores things</h3>
+    <table>
+      <thead><tr><th>Path</th><th>What</th></tr></thead>
+      <tbody>
+        <tr><td><code>~/.cache/claude-statusline</code></td><td>The status line's byte-offset scan cache. Delete it to force a full rescan.</td></tr>
+        <tr><td><code>dashboard/trajectory.config.json</code></td><td>The dashboard's settings, next to the script. Delete it to go back to defaults.</td></tr>
+        <tr><td><code>~/.claude/settings.json</code></td><td>Claude Code's own. Only <code>statusline/install.py</code> ever writes here, and only the <code>statusLine</code> key.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="trouble"><span class="n">§</span>Troubleshooting</h2>
+
+    <h4 class="sub">The status bar does not appear</h4>
+    <p>
+      Run the script by hand. A status line that crashes prints nothing, which
+      looks identical to a status line that was never configured:
+    </p>
+<pre><code>echo '{"model":{"display_name":"test"},"cwd":"/tmp"}' | python3 ~/.claude/statusline-command.py</code></pre>
+    <p>
+      It should print a bar. The script never exits non-zero and never prints a
+      traceback — on any failure it degrades to a minimal line, because a
+      broken status line should not take the session with it. If that command
+      works but the bar does not appear, the <code>statusLine</code> key is
+      missing or pointing at the wrong path; re-run
+      <code>install.py --dry-run</code> to see what it would write.
+    </p>
+
+    <h4 class="sub">The percentage is wrong</h4>
+    <p>
+      <code>CLAUDE_CONTEXT_LIMIT</code> defaults to <code>200000</code>. If your
+      model's window is a different size, the bar and the percent are both
+      scaled wrong. It is the one setting worth changing on a first install.
+    </p>
+
+    <h4 class="sub">The status line is slow</h4>
+    <p>
+      The first render on a long session scans the whole transcript; after that
+      it reads only the bytes appended since last time. Delete
+      <code>~/.cache/claude-statusline</code> to force a full rescan.
+    </p>
+
+    <h4 class="sub">Cost shows <code>$0.00</code>, or nothing</h4>
+    <p>
+      No rates are set, or the gateway reports its own cost as zero — many do.
+      Supply <code>CLAUDE_COST_*</code> and the figure is derived from token
+      counts instead.
+    </p>
+
+    <h4 class="sub">The dashboard opens but shows nothing</h4>
+    <p>
+      It reads <code>~/.claude/projects/*/*.jsonl</code>. If that directory is
+      somewhere else, set <code>CLAUDE_CONFIG_DIR</code>. If you have never run
+      Claude Code on this machine, there is nothing to read yet.
+    </p>
+
+    <h4 class="sub">The dashboard will not open on my other machine</h4>
+    <p>
+      It will not, by default. It binds to <code>127.0.0.1</code>, and the
+      transcript contains your prompts, your code and your file paths.
+      Settings → Server → Bind address will put it on <code>0.0.0.0</code> if
+      you really want that; it is your session log on your network, so it is
+      not the default.
+    </p>
+
+    <h2 id="collaboration"><span class="n">§</span>Collaborating</h2>
+    <p>
+      Issues and pull requests are both welcome. The project is small enough
+      that there is no process to learn, but a few things make a change easy to
+      take:
+    </p>
+    <ul>
+      <li>
+        <strong>Open an issue first for anything structural.</strong> The
+        dashboard is still changing shape, and it is a lot cheaper to agree on
+        the shape before either of us writes it.
+      </li>
+      <li>
+        <strong>Standard library only.</strong> Both tools are plain Python
+        3.8+. No <code>pip install</code> for anyone, and no dependency to
+        audit. That is a constraint, not an accident.
+      </li>
+      <li>
+        <strong>Python 3.8 is the floor.</strong> No walrus in a comprehension
+        position, no <code>match</code>, no <code>list[str]</code> in an
+        annotation that gets evaluated.
+      </li>
+      <li>
+        <strong>Keep the tokens in one place.</strong> A colour or a size is a
+        token in the stylesheet or a knob in <code>trajectory.py</code>'s
+        <code>CONFIG_SPEC</code>, never a literal in a component. A knob that
+        does not change real behaviour is a bug, not a placeholder.
+      </li>
+      <li>
+        <strong>Say what you measured.</strong> If a change is about contrast,
+        speed or size, put the before-and-after numbers in the pull request.
+        "Looks better" is hard to review; "2.76:1 → 4.61:1 on the 9.5px label"
+        is not.
+      </li>
+      <li>
+        <strong>Test on a light stock and a dark one.</strong> Almost every
+        layout bug in this project so far has appeared on one and not the
+        other.
+      </li>
+    </ul>
+
+    <h3>Where things live</h3>
+<pre><code>statusline/
+  statusline-command.py   the bar itself — reads the Claude Code JSON on stdin
+  install.py              cross-platform installer for settings.json
+  README.md               what each field means, every env knob, troubleshooting
+dashboard/
+  trajectory.py           transcript parsing, the terminal report, `serve`,
+                          CONFIG_SPEC (every setting), and the HTTP server
+  trajectory_dashboard.py the page — waterfall, flow, table, settings, extract
+docs/
+  index.html              this page
+  img/                    the screenshots above</code></pre>
+    <p>
+      Both files are large single files on purpose: the page is one embedded
+      string, so there is no build step, no bundler, and nothing between
+      <code>git clone</code> and a running dashboard.
+    </p>
+
+    <h2 id="licence"><span class="n">§</span>Licence</h2>
+    <p>
+      MIT. See <a href="https://github.com/abdulwasea89/traj-claude/blob/main/LICENSE">LICENSE</a>.
+      Use it, fork it, ship it. If you fix something, upstreaming it is
+      appreciated but not required.
+    </p>
+
+    <footer>
+      <span>traj-claude — MIT</span>
+      <a href="https://github.com/abdulwasea89/traj-claude">Repository</a>
+      <a href="https://github.com/abdulwasea89/traj-claude/issues">Issues</a>
+      <span class="sp">Not affiliated with Anthropic.</span>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+/* Two small things and no framework: the palette toggle, and marking the
+   section you are reading in the rail.
+
+   The toggle is the dashboard's own midnight/light pair. The first paint is
+   already themed by the stylesheet's default, so this only ever *changes* a
+   choice -- and it reads the stored one before first paint below. */
+(function(){
+  var root = document.documentElement, btn = document.getElementById('tog');
+  var KEY = 'traj-docs-theme';
+
+  /* Set before paint where possible: this script is at the end of the body,
+     so the attribute is applied in the same frame as the first layout. */
+  try{
+    var saved = localStorage.getItem(KEY);
+    if(saved === 'light' || saved === 'midnight') root.dataset.theme = saved;
+  }catch(e){}
+
+  function label(){
+    btn.textContent = root.dataset.theme === 'light' ? '◑ Dark' : '◐ Light';
+  }
+  btn.addEventListener('click', function(){
+    root.dataset.theme = root.dataset.theme === 'light' ? 'midnight' : 'light';
+    try{ localStorage.setItem(KEY, root.dataset.theme); }catch(e){}
+    label();
+  });
+  label();
+
+  /* The rail's active link. A scroll handler rather than IntersectionObserver:
+     the sections are few and it is one comparison per section, and it gets the
+     "last heading above the fold" answer right, which is the one you want when
+     the rail is a table of contents rather than a progress bar. */
+  var links = [].slice.call(document.querySelectorAll('.rail a[href^="#"]'));
+  var heads = links.map(function(a){
+    return document.getElementById(a.getAttribute('href').slice(1));
+  });
+
+  function mark(){
+    var best = -1, i;
+    for(i = 0; i < heads.length; i++){
+      if(heads[i] && heads[i].getBoundingClientRect().top <= 96) best = i;
+    }
+    links.forEach(function(a, k){ a.classList.toggle('on', k === best); });
+  }
+  addEventListener('scroll', mark, {passive:true});
+  addEventListener('resize', mark, {passive:true});
+  mark();
+
+  /* On a phone the rail is a fold-out rather than a sticky column. The button
+     is in the markup and the stylesheet decides whether it is shown, so a
+     window resized past the breakpoint keeps working either way. */
+  var rail = document.getElementById('rail');
+  var railbtn = document.getElementById('railbtn');
+  railbtn.addEventListener('click', function(){
+    var open = rail.classList.toggle('open');
+    railbtn.textContent = open ? 'Contents ▴' : 'Contents ▾';
+    railbtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  /* Following a link in a phone's table of contents should close it -- you are
+     being taken to the section, and the list is between you and it. */
+  rail.addEventListener('click', function(e){
+    if(e.target.tagName === 'A' && rail.classList.contains('open')){
+      rail.classList.remove('open');
+      railbtn.textContent = 'Contents ▾';
+      railbtn.setAttribute('aria-expanded', 'false');
+    }
+  });
+})();
+</script>
+</body>
+</html>

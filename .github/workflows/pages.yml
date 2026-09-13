@@ -1,0 +1,76 @@
+name: Pages
+
+# The docs site is one self-contained HTML file and a folder of PNGs, so
+# "build" is a copy. The job exists for the two things a branch-source Pages
+# deployment cannot do: it fails loudly when the page is broken, and it does
+# not need anyone to remember a dropdown in the repository settings.
+#
+# To use it: Settings -> Pages -> Source -> GitHub Actions, once. The
+# alternative -- Source -> Deploy from a branch -> main /docs -- needs no
+# workflow at all and serves the same files, minus the checks below.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and let a running one finish: a half-published site is
+# worse than a site that is one push behind.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the page is whole
+        run: |
+          set -e
+          test -f docs/index.html
+          # Every <img src> in the page has to exist, or Pages serves a 404 in
+          # the middle of a screenshot. Cheap to check, and the failure mode is
+          # silent otherwise -- the alt text just renders.
+          missing=0
+          for src in $(grep -o 'src="[^"]*"' docs/index.html | cut -d'"' -f2); do
+            case "$src" in
+              http*|data:*|//*) continue ;;
+            esac
+            if [ ! -f "docs/$src" ]; then
+              echo "::error file=docs/index.html::missing asset docs/$src"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Collect the site
+        run: |
+          mkdir -p _site
+          cp -r docs/. _site/
+          # Jekyll would try to render the HTML and drop files it does not
+          # recognise; this is a static folder and nothing here is a template.
+          touch _site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
