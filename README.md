@@ -97,6 +97,26 @@ the derivation `DESIGN.md` calls for, so they read as a line rather than as whit
 on black. **Hairline strength** in Settings scales them, 100 being the doc's 10%,
 0 removing every line.
 
+A source colour is a saved setting, and its default was picked against paper's
+light ground: a bar that reads at one lightness there sinks into a near-black
+one. So the page never draws a source colour raw — it draws that colour at the
+lightness the current stock asks for, same hue and same chroma, lifted 1.38×,
+which is the ratio `DESIGN.md` itself uses between a stock's accent and its
+dark-stock version. A bar, a dot, a table rail and a label that speaks in that
+colour are all one value, so a colour you pick in Settings moves all of them.
+The three light stocks draw the settings' exact values.
+
+Scrollbars come from the palette too: thin, the stock's accent at 45%, on a
+transparent track that lets the panel show through. It is the standard
+`scrollbar-width`/`scrollbar-color` pair doing the work rather than
+`::-webkit-scrollbar`, because that is what actually renders — a 14px
+`::-webkit-scrollbar` rule leaves the bar at the platform's 15px here, while
+`scrollbar-width:thin` takes it to 10. The pseudo-elements stay for older Blink,
+which knows only those. This also fixed the page's own scrollbar, which was
+coloured from `--bg-3` on `html`: the themes declare that token on `body`, so on
+`html` it fell back to paper's light value and drew a white bar down the side of
+every dark stock.
+
 Its settings live in `dashboard/trajectory.config.json`, next to the script. It is
 written on the first change you make, or on the first page load that has a
 migration to record. It never writes to `~/.claude/settings.json`.

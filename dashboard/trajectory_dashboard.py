@@ -119,15 +119,46 @@ body[data-theme=solarized],body[data-theme=oled]{
 }
 
 /* A source colour is a saved setting, and the defaults were picked against
-   paper's light ground: an amber or a blue that reads there muddies into a
-   near-black page. Rather than a second colour to keep in step, the text that
-   speaks in a source colour takes that colour mixed toward the stock's
-   foreground -- the hue is the user's, the lightness is the stock's. Lifting is
-   off wherever the ground is light, so paper and the light stocks are untouched
-   by this and it only ever costs a dark stock a mix. */
-:root{--src-lift:100%}
+   paper's light ground: a bar that reads at L 0.55 there sinks into a 0.16
+   background, and the same colour as a label there is not readable at all. So
+   the page never draws a source colour raw. It draws --fill-*, which is that
+   colour read on *this* stock: the identity on every light stock, and on the
+   dark ones the colour's own hue and chroma at the lightness the ground asks
+   for.
+
+   It has to be a second name rather than the token itself, because the token is
+   a setting: applyVars() writes it inline on :root, and a rule on body beats
+   that for every element inside body -- redeclaring --src-toolcall here would
+   make the Source colours knobs look broken on exactly the stocks that need
+   them. --fill-* is declared on the body, where it can see both the setting
+   inherited from :root and the theme's own --fg. A bar and a label that speaks
+   in the same colour are then the same value, so there is one name, not two. */
+body{
+  --fill-prompt:var(--src-prompt); --fill-text:var(--src-text);
+  --fill-reasoning:var(--src-reasoning); --fill-toolcall:var(--src-toolcall);
+  --fill-toolresult:var(--src-toolresult); --fill-inject:var(--src-inject);
+  --fill-system:var(--src-system); --fill-other:var(--src-other);
+}
+
+/* The lift is guarded, and the guard is not decoration: oklch(from ...) that
+   the engine does not understand is invalid at computed-value time, which would
+   leave every bar transparent rather than merely dim. 1.38 is the ratio the doc
+   itself uses between a stock's accent and its dark-stock version -- 0.72
+   against 0.52 -- and chroma comes up with lightness so the colour reads as
+   more of itself rather than as a pastel of itself. */
+@supports (color:oklch(from white l c h)){
+  body[data-theme=midnight],body[data-theme=dark],body[data-theme=oled]{
+    --fill-prompt:oklch(from var(--src-prompt) calc(l * 1.38) calc(c * 1.12) h);
+    --fill-text:oklch(from var(--src-text) calc(l * 1.38) calc(c * 1.12) h);
+    --fill-reasoning:oklch(from var(--src-reasoning) calc(l * 1.38) calc(c * 1.12) h);
+    --fill-toolcall:oklch(from var(--src-toolcall) calc(l * 1.38) calc(c * 1.12) h);
+    --fill-toolresult:oklch(from var(--src-toolresult) calc(l * 1.38) calc(c * 1.12) h);
+    --fill-inject:oklch(from var(--src-inject) calc(l * 1.38) calc(c * 1.12) h);
+    --fill-system:oklch(from var(--src-system) calc(l * 1.38) calc(c * 1.12) h);
+    --fill-other:oklch(from var(--src-other) calc(l * 1.38) calc(c * 1.12) h);
+  }
+}
 body[data-theme=midnight],body[data-theme=dark],body[data-theme=oled]{
-  --src-lift:58%;
   /* DESIGN.md's own pair: the midnight table's --destructive is 0.62 0.18 25.
      At 0.62 it is still under AA on a 0.16 ground, so it is set here at the
      lightness that reads -- an alarm colour that cannot be read is not one.
@@ -279,7 +310,12 @@ body[data-motion=false] .step.flash,body[data-motion=false] tr.flash{
    so renderWaterfall() drops both the column and the label together.) */
 body[data-flowmeta=false] .step-m{display:none}
 
-html{-webkit-text-size-adjust:100%;scrollbar-color:var(--bg-3) transparent}
+/* Was `scrollbar-color:var(--bg-3) transparent`, which is how the page's own
+   scrollbar ended up white on every dark stock: --bg-3 is declared per theme on
+   the body, so on html it resolved to :root's paper value and painted a light
+   bar down the side of midnight. The scrollbar rules below set both axes from
+   the palette now. */
+html{-webkit-text-size-adjust:100%}
 body{
   margin:0;background:var(--bg);color:var(--fg);
   font-family:var(--sans);font-size:15px;line-height:1.5;
@@ -563,10 +599,12 @@ h1{font-family:var(--serif);font-weight:400;font-size:clamp(27px,4.2vw,42px);
   overflow:hidden;display:inline-block}
 .status .cbar i{display:block;height:100%}
 .status .pct{font-weight:500}
-.status .up{color:color-mix(in oklab, var(--src-toolcall) var(--src-lift), var(--fg))}
-.status .down{color:color-mix(in oklab, var(--src-text) var(--src-lift), var(--fg))}
+/* The strip speaks in source colours, so it draws the same --fill-* the bars do
+   -- one value, lifted per stock, rather than a second mix that would drift. */
+.status .up{color:var(--fill-toolcall)}
+.status .down{color:var(--fill-text)}
 .status .sum{color:var(--brand)}
-.status .cost{color:color-mix(in oklab, var(--src-inject) var(--src-lift), var(--fg))}
+.status .cost{color:var(--fill-inject)}
 .status .miss{color:var(--faint)}
 
 /* --- waterfall: per-turn Input / Model / Tools spans ---------------------
@@ -981,6 +1019,41 @@ tr.detail pre{margin:0;font-family:var(--mono);font-size:11.5px;
   .panel-h{align-items:flex-start}
 }
 
+/* --- scrollbars ----------------------------------------------------------
+   The stock grey bar is the one piece of chrome on this page that ignored the
+   palette, and on a near-black stock it was the brightest thing on screen --
+   brighter than anything in the data it was scrolling past. The thumb is the
+   stock's own accent at low alpha, so it belongs to whichever palette is on,
+   and the track is transparent so a panel's background shows through and no
+   second rectangle is invented.
+
+   It is the standard pair and not ::-webkit-scrollbar, because that is what
+   actually renders: measured in this Chrome, `::-webkit-scrollbar{width:14px}`
+   leaves the bar at the platform's 15px and `scrollbar-width:thin` takes it to
+   10. Chrome ignores the pseudo-elements once the standard properties are set,
+   and ignores them outright for overlay scrollbars, so the standard pair is the
+   one that is seen. It is also the only form Firefox has. The pseudo-elements
+   stay below for older Blink, where the standard pair does not exist yet; each
+   engine uses the half it knows.
+
+   Rounding and a hover state would be nicer and are not on offer here -- a
+   scrollbar is the one control the platform keeps to itself, and
+   scrollbar-color is the only door into it. */
+:root{
+  --sb-track:transparent;
+  --sb-thumb:color-mix(in oklab, var(--brand) 45%, transparent);
+}
+/* scrollbar-color inherits and scrollbar-width does not, so the pair goes on
+   every element: a root-only rule would theme the page's own bar and leave
+   every panel's at the platform width, which is the mismatch this is here to
+   avoid. Both axes follow from the same two properties. */
+*{scrollbar-width:thin;scrollbar-color:var(--sb-thumb) var(--sb-track)}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-track{background:var(--sb-track)}
+::-webkit-scrollbar-thumb{background:var(--sb-thumb);border-radius:999px;
+  border:3px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-corner{background:var(--sb-track)}
+
 /* Reduced motion: unlayered so it wins. The page animates nothing on
    purpose, so there is no "from opacity 0" state to settle -- only the
    new-event flash, which is pinned to a static tint instead of blinking. */
@@ -1026,17 +1099,20 @@ function human(n){
    than values baked in here, because each one is a setting: changing a source
    colour in Settings has to move every place that source is drawn, and the
    way to guarantee that is for every place to read the same variable. */
-function srcVar(s){
-  if(s.indexOf('inject:') === 0) return '--src-inject';
-  if(s.indexOf('system:') === 0) return '--src-system';
-  if(s === 'reasoning') return '--src-reasoning';
-  if(s === 'tool call') return '--src-toolcall';
-  if(s === 'tool result') return '--src-toolresult';
-  if(s === 'user prompt') return '--src-prompt';
-  if(s === 'text') return '--src-text';
-  return '--src-other';
+/* What colour a source is drawn in -- the bar, the dot, the rail, the swatch in
+   the Sources menu, and the label that speaks in it. It is --fill-* and not
+   --src-*: see the note on the fill tokens above. */
+function fillVar(s){
+  if(s.indexOf('inject:') === 0) return '--fill-inject';
+  if(s.indexOf('system:') === 0) return '--fill-system';
+  if(s === 'reasoning') return '--fill-reasoning';
+  if(s === 'tool call') return '--fill-toolcall';
+  if(s === 'tool result') return '--fill-toolresult';
+  if(s === 'user prompt') return '--fill-prompt';
+  if(s === 'text') return '--fill-text';
+  return '--fill-other';
 }
-const hueColor = s => 'var('+srcVar(s)+')';
+const hueColor = s => 'var('+fillVar(s)+')';
 
 function jsonHTML(raw){
   let obj;
@@ -1327,7 +1403,7 @@ function renderSpark(){
   const bars = s.map((d,i)=>{
     const bh = Math.max(1, Math.round(d.tokens/max*h));
     return '<rect x="'+(i*bw).toFixed(2)+'" y="'+(h-bh)+'" width="'+Math.max(1,bw-1).toFixed(2)+
-      '" height="'+bh+'" fill="'+(i===n-1 ? 'var(--brand)' : 'var(--src-toolcall)')+
+      '" height="'+bh+'" fill="'+(i===n-1 ? 'var(--brand)' : 'var(--fill-toolcall)')+
       '" opacity="'+(i===n-1?1:0.55)+'"><title>'+esc(d.t)+' · '+human(d.tokens)+
       ' tok · '+d.events+' events</title></rect>';
   }).join('');
